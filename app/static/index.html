@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Cuentas Claras</title>
+<link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+
+<header class="topbar">
+  <h1>💸 Cuentas Claras</h1>
+  <div id="user-info" class="hidden">
+    <span id="user-name-display"></span>
+    <button id="logout-btn">Salir</button>
+  </div>
+</header>
+
+<!-- ---------- AUTENTICACIÓN ---------- -->
+<section id="auth-screen" class="screen">
+  <div class="card auth-card">
+    <div class="tabs">
+      <button class="tab-btn active" data-tab="login">Iniciar sesión</button>
+      <button class="tab-btn" data-tab="register">Crear cuenta</button>
+    </div>
+
+    <form id="login-form" class="tab-content active">
+      <input type="email" id="login-email" placeholder="Correo" required>
+      <input type="password" id="login-password" placeholder="Contraseña" required>
+      <button type="submit">Entrar</button>
+      <p class="error" id="login-error"></p>
+    </form>
+
+    <form id="register-form" class="tab-content">
+      <input type="text" id="register-name" placeholder="Nombre" required>
+      <input type="email" id="register-email" placeholder="Correo" required>
+      <input type="password" id="register-password" placeholder="Contraseña" required>
+      <button type="submit">Crear cuenta</button>
+      <p class="error" id="register-error"></p>
+    </form>
+  </div>
+</section>
+
+<!-- ---------- LISTA DE GRUPOS ---------- -->
+<section id="groups-screen" class="screen hidden">
+  <div class="card">
+    <h2>Tus grupos</h2>
+    <form id="create-group-form" class="inline-form">
+      <input type="text" id="new-group-name" placeholder="Nombre del grupo (ej: Depto 2026)" required>
+      <button type="submit">+ Crear grupo</button>
+    </form>
+    <p class="error" id="group-error"></p>
+    <ul id="groups-list" class="list"></ul>
+  </div>
+</section>
+
+<!-- ---------- DETALLE DE GRUPO ---------- -->
+<section id="group-detail-screen" class="screen hidden">
+  <button id="back-to-groups" class="back-btn">← Volver a grupos</button>
+  <div class="card">
+    <div class="group-header">
+      <h2 id="group-detail-name"></h2>
+      <form id="add-member-form" class="inline-form">
+        <input type="email" id="new-member-email" placeholder="Correo del integrante" required>
+        <button type="submit">+ Agregar</button>
+      </form>
+    </div>
+    <p class="error" id="member-error"></p>
+    <div id="members-chips" class="chips"></div>
+  </div>
+
+  <div class="card">
+    <h3>Agregar gasto</h3>
+    <form id="add-expense-form" class="expense-form">
+      <input type="text" id="expense-desc" placeholder="Descripción (ej: Supermercado)" required>
+      <input type="number" id="expense-amount" placeholder="Monto (CLP)" min="1" required>
+      <select id="expense-payer" required></select>
+      <button type="submit">Agregar gasto</button>
+    </form>
+    <p class="error" id="expense-error"></p>
+  </div>
+
+  <div class="grid-2">
+    <div class="card">
+      <h3>Gastos registrados</h3>
+      <ul id="expenses-list" class="list"></ul>
+    </div>
+
+    <div class="card">
+      <h3>Balances</h3>
+      <ul id="balances-list" class="list"></ul>
+      <h3>Cómo saldar cuentas (mínimas transacciones)</h3>
+      <ul id="simplified-list" class="list"></ul>
+    </div>
+  </div>
+</section>
+
+<script src="/static/js/app.js"></script>
+</body>
+</html>
