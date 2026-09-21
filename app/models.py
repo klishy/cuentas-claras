@@ -1,18 +1,11 @@
 from sqlalchemy import (
-    Column, Integer, String, Float, ForeignKey, DateTime, Table, Boolean
+    Column, Integer, String, Float, ForeignKey, DateTime, Boolean
 )
 from sqlalchemy.orm import relationship
+from sqlalchemy.ext.associationproxy import association_proxy
 from datetime import datetime
 
 from .database import Base
-
-# Tabla intermedia: usuarios <-> grupos (muchos a muchos)
-group_members = Table(
-    "group_members",
-    Base.metadata,
-    Column("group_id", Integer, ForeignKey("groups.id"), primary_key=True),
-    Column("user_id", Integer, ForeignKey("users.id"), primary_key=True),
-)
 
 
 class User(Base):
@@ -25,7 +18,12 @@ class User(Base):
     is_premium = Column(Boolean, default=False)  # true si pagó la suscripción
     created_at = Column(DateTime, default=datetime.utcnow)
 
-    groups = relationship("Group", secondary=group_members, back_populates="members")
+    memberships = relationship(
+        "GroupMembership", back_populates="user", cascade="all, delete-orphan"
+    )
+    groups = association_proxy(
+        "memberships", "group", creator=lambda group: GroupMembership(group=group)
+    )
     expenses_paid = relationship("Expense", back_populates="paid_by")
 
 
@@ -36,9 +34,29 @@ class Group(Base):
     name = Column(String, nullable=False)
     created_by_id = Column(Integer, ForeignKey("users.id"))
     created_at = Column(DateTime, default=datetime.utcnow)
+    # "equal" = partes iguales | "income" = proporcional al sueldo de cada uno
+    default_split_method = Column(String, default="equal")
 
-    members = relationship("User", secondary=group_members, back_populates="groups")
+    memberships = relationship(
+        "GroupMembership", back_populates="group", cascade="all, delete-orphan"
+    )
+    members = association_proxy(
+        "memberships", "user", creator=lambda user: GroupMembership(user=user)
+    )
     expenses = relationship("Expense", back_populates="group", cascade="all, delete")
+
+
+class GroupMembership(Base):
+    """Relación usuario-grupo, guarda datos propios de esa membresía (ej: sueldo)."""
+    __tablename__ = "group_memberships"
+
+    id = Column(Integer, primary_key=True, index=True)
+    group_id = Column(Integer, ForeignKey("groups.id"))
+    user_id = Column(Integer, ForeignKey("users.id"))
+    income = Column(Float, nullable=True)  # sueldo declarado para este grupo
+
+    group = relationship("Group", back_populates="memberships")
+    user = relationship("User", back_populates="memberships")
 
 
 class Expense(Base):
@@ -49,6 +67,7 @@ class Expense(Base):
     description = Column(String, nullable=False)
     amount = Column(Float, nullable=False)
     paid_by_id = Column(Integer, ForeignKey("users.id"))
+    split_method = Column(String, default="equal")  # "equal" | "income"
     created_at = Column(DateTime, default=datetime.utcnow)
 
     group = relationship("Group", back_populates="expenses")

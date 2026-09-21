@@ -31,13 +31,43 @@ def create_expense(
     else:
         participants = group.members  # división pareja entre todos
 
-    share = round(expense.amount / len(participants), 2)
+    if expense.split_method not in ("equal", "income"):
+        raise HTTPException(status_code=400, detail="Método de división inválido")
+
+    shares = {}  # user_id -> monto que le corresponde pagar
+
+    if expense.split_method == "income":
+        memberships = {m.user_id: m for m in group.memberships if m.user_id in [p.id for p in participants]}
+
+        missing = [p.name for p in participants if memberships.get(p.id) is None or memberships[p.id].income is None]
+        if missing:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Faltan por declarar su sueldo: {', '.join(missing)}. Todos deben declararlo antes de dividir por sueldo.",
+            )
+
+        incomes = {uid: m.income for uid, m in memberships.items()}
+        total_income = sum(incomes.values())
+
+        if total_income <= 0:
+            raise HTTPException(
+                status_code=400,
+                detail="La suma de los sueldos declarados debe ser mayor a cero",
+            )
+
+        for p in participants:
+            shares[p.id] = round(expense.amount * (incomes[p.id] / total_income), 2)
+    else:
+        share = round(expense.amount / len(participants), 2)
+        for p in participants:
+            shares[p.id] = share
 
     new_expense = models.Expense(
         group_id=group.id,
         description=expense.description,
         amount=expense.amount,
         paid_by_id=payer.id,
+        split_method=expense.split_method,
     )
     db.add(new_expense)
     db.flush()  # para obtener new_expense.id antes de commit
@@ -45,7 +75,7 @@ def create_expense(
     # Ajuste de centavos: el último participante absorbe la diferencia de redondeo
     total_assigned = 0.0
     for i, member in enumerate(participants):
-        amount = share
+        amount = shares[member.id]
         if i == len(participants) - 1:
             amount = round(expense.amount - total_assigned, 2)
         total_assigned = round(total_assigned + amount, 2)
@@ -189,6 +219,7 @@ def _serialize_expense(expense: models.Expense) -> dict:
         "amount": expense.amount,
         "paid_by_id": expense.paid_by_id,
         "paid_by_name": expense.paid_by.name,
+        "split_method": expense.split_method,
         "created_at": expense.created_at,
         "splits": [
             {

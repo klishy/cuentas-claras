@@ -17,6 +17,11 @@ sin build step — se sirve directo desde el mismo servidor).
 
 ## 2. Instalación (copiar y pegar en la terminal, PowerShell o CMD)
 
+> ⚠️ **Si ya tenías una versión anterior de esta app corriendo**, borra el archivo
+> `cuentas_claras.db` antes de levantar el servidor de nuevo. El modelo de datos cambió
+> (se agregó el sistema de sueldos) y la base de datos vieja no es compatible. En Windows,
+> dentro de la carpeta del proyecto, ejecuta `Remove-Item cuentas_claras.db` (si existe).
+
 Copia la carpeta `cuentas-claras` completa a tu carpeta de proyectos, por ejemplo:
 `C:\Users\TU_USUARIO\OneDrive\Documentos\cuentas-claras`
 
@@ -53,8 +58,13 @@ crear un grupo, agregar gastos y ver los balances.
 
 - **Autenticación**: registro/login con contraseña (hasheada con bcrypt) y sesión con JWT
 - **Grupos**: crear grupos y agregar integrantes por correo
-- **Gastos**: registrar un gasto, se divide automáticamente en partes iguales entre los
-  miembros del grupo (con ajuste de centavos, para que la suma siempre cuadre exacto)
+- **Gastos**: registrar un gasto, con dos formas de dividirlo:
+  - **Partes iguales**: se reparte por igual entre los miembros del grupo (con ajuste de
+    centavos, para que la suma siempre cuadre exacto)
+  - **Proporcional al sueldo**: cada integrante declara su sueldo en el grupo, y el gasto
+    se reparte según cuánto gana cada uno (ej: si ganas el doble que tu compañero de depto,
+    pagas el doble del arriendo). Todos los participantes deben declarar su sueldo antes de
+    usar este modo, o la app avisa quién falta.
 - **Balances**: ve cuánto le debe o le deben a cada persona
 - **Simplificación de deudas**: un algoritmo calcula el **número mínimo de transferencias**
   necesarias para saldar todas las cuentas del grupo (en vez de que cada quien le transfiera

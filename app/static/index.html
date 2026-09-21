@@ -70,11 +70,26 @@
   </div>
 
   <div class="card">
+    <h3>💰 Sueldos del grupo (para dividir gastos proporcional al ingreso)</h3>
+    <p class="hint-text">Declara tu sueldo aquí. Solo tú puedes ver/editar el tuyo; se usa para calcular divisiones justas.</p>
+    <form id="income-form" class="inline-form">
+      <input type="number" id="my-income" placeholder="Tu sueldo líquido (CLP)" min="0" required>
+      <button type="submit">Guardar mi sueldo</button>
+    </form>
+    <p class="error" id="income-error"></p>
+    <ul id="incomes-list" class="list"></ul>
+  </div>
+
+  <div class="card">
     <h3>Agregar gasto</h3>
     <form id="add-expense-form" class="expense-form">
       <input type="text" id="expense-desc" placeholder="Descripción (ej: Supermercado)" required>
       <input type="number" id="expense-amount" placeholder="Monto (CLP)" min="1" required>
       <select id="expense-payer" required></select>
+      <select id="expense-split-method">
+        <option value="equal">Partes iguales</option>
+        <option value="income">Proporcional al sueldo</option>
+      </select>
       <button type="submit">Agregar gasto</button>
     </form>
     <p class="error" id="expense-error"></p>

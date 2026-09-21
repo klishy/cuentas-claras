@@ -156,6 +156,35 @@ async function refreshGroupDetail() {
 
   await loadExpenses();
   await loadBalances();
+  await loadIncomes();
+}
+
+document.getElementById("income-form").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const income = parseFloat(document.getElementById("my-income").value);
+  try {
+    await apiFetch(`/groups/${currentGroupId}/my-income`, {
+      method: "PUT",
+      body: JSON.stringify({ income }),
+    });
+    document.getElementById("income-error").textContent = "";
+    await loadIncomes();
+  } catch (err) {
+    document.getElementById("income-error").textContent = err.message;
+  }
+});
+
+async function loadIncomes() {
+  const incomes = await apiFetch(`/groups/${currentGroupId}/incomes`);
+  const list = document.getElementById("incomes-list");
+  list.innerHTML = "";
+  incomes.forEach((inc) => {
+    const li = document.createElement("li");
+    const isMine = inc.user_id === currentUser.id;
+    const value = inc.income != null ? fmt(inc.income) : (isMine ? "—" : "No declarado");
+    li.innerHTML = `<span>${inc.user_name}${isMine ? " (tú)" : ""}</span><span>${value}</span>`;
+    list.appendChild(li);
+  });
 }
 
 document.getElementById("add-member-form").addEventListener("submit", async (e) => {
@@ -180,10 +209,11 @@ document.getElementById("add-expense-form").addEventListener("submit", async (e)
   const description = document.getElementById("expense-desc").value;
   const amount = parseFloat(document.getElementById("expense-amount").value);
   const paid_by_id = parseInt(document.getElementById("expense-payer").value);
+  const split_method = document.getElementById("expense-split-method").value;
   try {
     await apiFetch(`/groups/${currentGroupId}/expenses/`, {
       method: "POST",
-      body: JSON.stringify({ description, amount, paid_by_id }),
+      body: JSON.stringify({ description, amount, paid_by_id, split_method }),
     });
     document.getElementById("expense-desc").value = "";
     document.getElementById("expense-amount").value = "";
@@ -204,10 +234,11 @@ async function loadExpenses() {
   }
   expenses.slice().reverse().forEach((exp) => {
     const li = document.createElement("li");
+    const methodLabel = exp.split_method === "income" ? "proporcional al sueldo" : "partes iguales";
     li.innerHTML = `
       <div>
         <strong>${exp.description}</strong><br>
-        <small>Pagó ${exp.paid_by_name} · ${fmt(exp.amount)}</small>
+        <small>Pagó ${exp.paid_by_name} · ${fmt(exp.amount)} · ${methodLabel}</small>
       </div>
       <button class="delete-btn" data-id="${exp.id}">🗑</button>
     `;

@@ -92,3 +92,43 @@ def _get_group_or_404(db: Session, group_id: int, current_user: models.User) -> 
     if current_user not in group.members:
         raise HTTPException(status_code=403, detail="No perteneces a este grupo")
     return group
+
+
+# ---------- Sueldos (para división proporcional al ingreso) ----------
+
+@router.get("/{group_id}/incomes", response_model=List[schemas.MemberIncomeOut])
+def get_incomes(
+    group_id: int,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(auth.get_current_user),
+):
+    group = _get_group_or_404(db, group_id, current_user)
+    result = []
+    for m in group.memberships:
+        result.append(
+            schemas.MemberIncomeOut(user_id=m.user_id, user_name=m.user.name, income=m.income)
+        )
+    return result
+
+
+@router.put("/{group_id}/my-income", response_model=schemas.MemberIncomeOut)
+def set_my_income(
+    group_id: int,
+    payload: schemas.SetIncomeIn,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(auth.get_current_user),
+):
+    group = _get_group_or_404(db, group_id, current_user)
+
+    if payload.income < 0:
+        raise HTTPException(status_code=400, detail="El sueldo no puede ser negativo")
+
+    membership = next((m for m in group.memberships if m.user_id == current_user.id), None)
+    if not membership:
+        raise HTTPException(status_code=404, detail="Membresía no encontrada")
+
+    membership.income = payload.income
+    db.commit()
+    return schemas.MemberIncomeOut(
+        user_id=current_user.id, user_name=current_user.name, income=membership.income
+    )

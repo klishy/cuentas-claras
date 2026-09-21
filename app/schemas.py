@@ -49,12 +49,24 @@ class AddMember(BaseModel):
     email: EmailStr
 
 
+class MemberIncomeOut(BaseModel):
+    user_id: int
+    user_name: str
+    income: Optional[float] = None
+
+
+class SetIncomeIn(BaseModel):
+    income: float
+
+
 # ---------- Gasto ----------
 class ExpenseCreate(BaseModel):
     description: str
     amount: float
     paid_by_id: int
-    # Si no se especifica, se divide en partes iguales entre todos los miembros del grupo
+    # "equal" (partes iguales) o "income" (proporcional al sueldo declarado)
+    split_method: str = "equal"
+    # Si no se especifica, se divide entre todos los miembros del grupo
     split_between_ids: Optional[List[int]] = None
 
 
@@ -74,6 +86,7 @@ class ExpenseOut(BaseModel):
     amount: float
     paid_by_id: int
     paid_by_name: str
+    split_method: str
     created_at: datetime
     splits: List[SplitOut] = []
 
