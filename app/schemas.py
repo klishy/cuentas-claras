@@ -60,21 +60,31 @@ class SetIncomeIn(BaseModel):
 
 
 # ---------- Gasto ----------
+class ManualShare(BaseModel):
+    user_id: int
+    amount: float
+
+
 class ExpenseCreate(BaseModel):
     description: str
     amount: float
     paid_by_id: int
-    # "equal" (partes iguales) o "income" (proporcional al sueldo declarado)
+    category: str = "otros"
+    # "equal" (partes iguales), "income" (proporcional al sueldo) o "manual" (montos elegidos a mano)
     split_method: str = "equal"
     # Si no se especifica, se divide entre todos los miembros del grupo
     split_between_ids: Optional[List[int]] = None
+    # Solo si split_method == "manual": monto exacto que le corresponde a cada participante
+    manual_shares: Optional[List[ManualShare]] = None
 
 
 class SplitOut(BaseModel):
+    id: int
     user_id: int
     user_name: str
     amount_owed: float
     settled: bool
+    settled_at: Optional[datetime] = None
 
     class Config:
         from_attributes = True
@@ -87,6 +97,7 @@ class ExpenseOut(BaseModel):
     paid_by_id: int
     paid_by_name: str
     split_method: str
+    category: str
     created_at: datetime
     splits: List[SplitOut] = []
 
@@ -109,3 +120,16 @@ class SimplifiedDebt(BaseModel):
     from_user: str
     to_user: str
     amount: float
+
+
+# ---------- Resumen general (para aviso de deudas pendientes) ----------
+class ResumenGrupoEntry(BaseModel):
+    group_id: int
+    group_name: str
+    balance: float  # positivo = le deben en ese grupo, negativo = debe
+
+
+class ResumenPendientes(BaseModel):
+    total_le_deben: float
+    total_debe: float
+    detalle: List[ResumenGrupoEntry]

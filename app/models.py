@@ -67,7 +67,8 @@ class Expense(Base):
     description = Column(String, nullable=False)
     amount = Column(Float, nullable=False)
     paid_by_id = Column(Integer, ForeignKey("users.id"))
-    split_method = Column(String, default="equal")  # "equal" | "income"
+    split_method = Column(String, default="equal")  # "equal" | "income" | "manual"
+    category = Column(String, default="otros")
     created_at = Column(DateTime, default=datetime.utcnow)
 
     group = relationship("Group", back_populates="expenses")
@@ -84,6 +85,7 @@ class ExpenseSplit(Base):
     user_id = Column(Integer, ForeignKey("users.id"))
     amount_owed = Column(Float, nullable=False)
     settled = Column(Boolean, default=False)
+    settled_at = Column(DateTime, nullable=True)
 
     expense = relationship("Expense", back_populates="splits")
     user = relationship("User")

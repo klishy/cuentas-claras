@@ -2,9 +2,11 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from typing import List
 from collections import defaultdict
+from datetime import datetime
 
 from .. import models, schemas, auth
 from ..database import get_db
+from ..categories import VALID_CATEGORIES
 from .groups_router import _get_group_or_404
 
 router = APIRouter(prefix="/groups/{group_id}/expenses", tags=["Gastos"])
@@ -23,6 +25,11 @@ def create_expense(
     if not payer or payer not in group.members:
         raise HTTPException(status_code=400, detail="Quien pagó debe ser miembro del grupo")
 
+    if expense.split_method not in ("equal", "income", "manual"):
+        raise HTTPException(status_code=400, detail="Método de división inválido")
+
+    category = expense.category if expense.category in VALID_CATEGORIES else "otros"
+
     # Determinar entre quiénes se divide
     if expense.split_between_ids:
         participants = [m for m in group.members if m.id in expense.split_between_ids]
@@ -30,9 +37,6 @@ def create_expense(
             raise HTTPException(status_code=400, detail="Participantes inválidos")
     else:
         participants = group.members  # división pareja entre todos
-
-    if expense.split_method not in ("equal", "income"):
-        raise HTTPException(status_code=400, detail="Método de división inválido")
 
     shares = {}  # user_id -> monto que le corresponde pagar
 
@@ -57,7 +61,34 @@ def create_expense(
 
         for p in participants:
             shares[p.id] = round(expense.amount * (incomes[p.id] / total_income), 2)
-    else:
+
+    elif expense.split_method == "manual":
+        if not expense.manual_shares:
+            raise HTTPException(
+                status_code=400,
+                detail="Debes indicar el monto exacto para cada participante",
+            )
+
+        manual_map = {s.user_id: s.amount for s in expense.manual_shares}
+        participant_ids = {p.id for p in participants}
+
+        if set(manual_map.keys()) != participant_ids:
+            raise HTTPException(
+                status_code=400,
+                detail="Debes indicar un monto para cada participante seleccionado, ni más ni menos",
+            )
+
+        total_manual = round(sum(manual_map.values()), 2)
+        if abs(total_manual - round(expense.amount, 2)) > 0.5:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Los montos deben sumar el total del gasto (${expense.amount:,.0f}), pero suman ${total_manual:,.0f}",
+            )
+
+        for p in participants:
+            shares[p.id] = round(manual_map[p.id], 2)
+
+    else:  # equal
         share = round(expense.amount / len(participants), 2)
         for p in participants:
             shares[p.id] = share
@@ -68,15 +99,17 @@ def create_expense(
         amount=expense.amount,
         paid_by_id=payer.id,
         split_method=expense.split_method,
+        category=category,
     )
     db.add(new_expense)
     db.flush()  # para obtener new_expense.id antes de commit
 
     # Ajuste de centavos: el último participante absorbe la diferencia de redondeo
+    # (no se aplica en modo manual, ahí los montos ya son exactos y elegidos a mano)
     total_assigned = 0.0
     for i, member in enumerate(participants):
         amount = shares[member.id]
-        if i == len(participants) - 1:
+        if expense.split_method != "manual" and i == len(participants) - 1:
             amount = round(expense.amount - total_assigned, 2)
         total_assigned = round(total_assigned + amount, 2)
 
@@ -85,6 +118,7 @@ def create_expense(
             user_id=member.id,
             amount_owed=amount,
             settled=(member.id == payer.id),  # el que paga no se debe a sí mismo
+            settled_at=datetime.utcnow() if member.id == payer.id else None,
         )
         db.add(split)
 
@@ -136,6 +170,7 @@ def settle_split(
     if not split:
         raise HTTPException(status_code=404, detail="División no encontrada")
     split.settled = True
+    split.settled_at = datetime.utcnow()
     db.commit()
     return {"ok": True}
 
@@ -220,13 +255,16 @@ def _serialize_expense(expense: models.Expense) -> dict:
         "paid_by_id": expense.paid_by_id,
         "paid_by_name": expense.paid_by.name,
         "split_method": expense.split_method,
+        "category": expense.category,
         "created_at": expense.created_at,
         "splits": [
             {
+                "id": s.id,
                 "user_id": s.user_id,
                 "user_name": s.user.name,
                 "amount_owed": s.amount_owed,
                 "settled": s.settled,
+                "settled_at": s.settled_at,
             }
             for s in expense.splits
         ],

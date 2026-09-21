@@ -43,6 +43,8 @@
 
 <!-- ---------- LISTA DE GRUPOS ---------- -->
 <section id="groups-screen" class="screen hidden">
+  <div id="reminder-banner-container"></div>
+
   <div class="card">
     <h2>Tus grupos</h2>
     <form id="create-group-form" class="inline-form">
@@ -85,13 +87,16 @@
     <form id="add-expense-form" class="expense-form">
       <input type="text" id="expense-desc" placeholder="Descripción (ej: Supermercado)" required>
       <input type="number" id="expense-amount" placeholder="Monto (CLP)" min="1" required>
+      <select id="expense-category"></select>
       <select id="expense-payer" required></select>
       <select id="expense-split-method">
         <option value="equal">Partes iguales</option>
         <option value="income">Proporcional al sueldo</option>
+        <option value="manual">Montos manuales</option>
       </select>
       <button type="submit">Agregar gasto</button>
     </form>
+    <div id="manual-split-box" class="manual-split-box"></div>
     <p class="error" id="expense-error"></p>
   </div>
 

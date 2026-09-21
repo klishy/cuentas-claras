@@ -46,6 +46,44 @@ def list_my_groups(
     return current_user.groups
 
 
+@router.get("/resumen/pendientes", response_model=schemas.ResumenPendientes)
+def get_resumen_pendientes(
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(auth.get_current_user),
+):
+    """Resumen de deudas pendientes de TODOS los grupos del usuario, para el aviso al entrar."""
+    from collections import defaultdict
+
+    total_le_deben = 0.0
+    total_debe = 0.0
+    detalle = []
+
+    for group in current_user.groups:
+        net = defaultdict(float)
+        for expense in group.expenses:
+            for split in expense.splits:
+                if split.settled:
+                    continue
+                net[split.user_id] -= split.amount_owed
+                net[expense.paid_by_id] += split.amount_owed
+
+        my_balance = round(net.get(current_user.id, 0.0), 2)
+        if abs(my_balance) > 0.5:
+            detalle.append(
+                schemas.ResumenGrupoEntry(group_id=group.id, group_name=group.name, balance=my_balance)
+            )
+            if my_balance > 0:
+                total_le_deben += my_balance
+            else:
+                total_debe += -my_balance
+
+    return schemas.ResumenPendientes(
+        total_le_deben=round(total_le_deben, 2),
+        total_debe=round(total_debe, 2),
+        detalle=detalle,
+    )
+
+
 @router.get("/{group_id}", response_model=schemas.GroupOut)
 def get_group(
     group_id: int,

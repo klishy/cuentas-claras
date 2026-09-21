@@ -19,8 +19,9 @@ sin build step — se sirve directo desde el mismo servidor).
 
 > ⚠️ **Si ya tenías una versión anterior de esta app corriendo**, borra el archivo
 > `cuentas_claras.db` antes de levantar el servidor de nuevo. El modelo de datos cambió
-> (se agregó el sistema de sueldos) y la base de datos vieja no es compatible. En Windows,
-> dentro de la carpeta del proyecto, ejecuta `Remove-Item cuentas_claras.db` (si existe).
+> (se agregaron categorías, división manual e historial de pagos) y la base de datos
+> vieja no es compatible. En Windows, dentro de la carpeta del proyecto, ejecuta
+> `Remove-Item cuentas_claras.db` (si existe).
 
 Copia la carpeta `cuentas-claras` completa a tu carpeta de proyectos, por ejemplo:
 `C:\Users\TU_USUARIO\OneDrive\Documentos\cuentas-claras`
@@ -58,13 +59,22 @@ crear un grupo, agregar gastos y ver los balances.
 
 - **Autenticación**: registro/login con contraseña (hasheada con bcrypt) y sesión con JWT
 - **Grupos**: crear grupos y agregar integrantes por correo
-- **Gastos**: registrar un gasto, con dos formas de dividirlo:
+- **Gastos**: registrar un gasto, con tres formas de dividirlo:
   - **Partes iguales**: se reparte por igual entre los miembros del grupo (con ajuste de
     centavos, para que la suma siempre cuadre exacto)
   - **Proporcional al sueldo**: cada integrante declara su sueldo en el grupo, y el gasto
-    se reparte según cuánto gana cada uno (ej: si ganas el doble que tu compañero de depto,
-    pagas el doble del arriendo). Todos los participantes deben declarar su sueldo antes de
-    usar este modo, o la app avisa quién falta.
+    se reparte según cuánto gana cada uno. Todos los participantes deben declarar su
+    sueldo antes de usar este modo, o la app avisa quién falta.
+  - **Montos manuales**: eliges tú mismo cuánto le corresponde pagar a cada persona (útil
+    para gastos que no se reparten proporcionalmente, ej. alguien pidió más comida). La
+    app valida que los montos sumen exactamente el total del gasto.
+- **Categorías de gasto**: cada gasto se clasifica con un ícono (🏠 arriendo, 🛒 supermercado,
+  🍔 comida, 🚌 transporte, 💡 servicios, 🎉 salidas, 💊 salud, 📦 otros)
+- **Historial de pagos**: cada persona puede marcar su parte de un gasto como pagada; queda
+  registrada la fecha exacta en que se saldó
+- **Aviso de deudas pendientes**: al entrar a la app, un banner resume cuánto debes o te
+  deben en total, sumando todos tus grupos (no son notificaciones push reales — el plan
+  gratuito de hosting no soporta eso — pero es un resumen inmediato al abrir la app)
 - **Balances**: ve cuánto le debe o le deben a cada persona
 - **Simplificación de deudas**: un algoritmo calcula el **número mínimo de transferencias**
   necesarias para saldar todas las cuentas del grupo (en vez de que cada quien le transfiera
