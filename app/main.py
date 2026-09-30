@@ -30,7 +30,7 @@ app.include_router(balance_router)
 
 @app.get("/categories")
 def get_categories():
-    return [{"key": k, "icon": v} for k, v in CATEGORIES.items()]
+    return [{"key": k, **v} for k, v in CATEGORIES.items()]
 
 STATIC_DIR = os.path.join(os.path.dirname(__file__), "static")
 app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")

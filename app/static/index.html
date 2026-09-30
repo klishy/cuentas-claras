@@ -2,14 +2,15 @@
 <html lang="es">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>fasti</title>
-<link rel="stylesheet" href="/static/css/style.css">
+<meta name="theme-color" content="#f1ecf7">
+<link rel="stylesheet" href="/static/css/style.css?v=5">
 </head>
 <body>
 
 <header class="topbar">
-  <h1>💸 fasti</h1>
+  <h1>fasti</h1>
   <div id="user-info" class="hidden">
     <span id="user-name-display"></span>
     <button id="logout-btn">Salir</button>
@@ -72,10 +73,10 @@
   </div>
 
   <div class="card">
-    <h3>💰 Sueldos del grupo (para dividir gastos proporcional al ingreso)</h3>
+    <h3>Sueldos del grupo (para dividir gastos proporcional al ingreso)</h3>
     <p class="hint-text">Declara tu sueldo aquí. Solo tú puedes ver/editar el tuyo; se usa para calcular divisiones justas.</p>
     <form id="income-form" class="inline-form">
-      <input type="number" id="my-income" placeholder="Tu sueldo líquido (CLP)" min="0" required>
+      <input type="text" inputmode="numeric" autocomplete="off" class="money" id="my-income" placeholder="Tu sueldo líquido (CLP)" required>
       <button type="submit">Guardar mi sueldo</button>
     </form>
     <p class="error" id="income-error"></p>
@@ -86,7 +87,7 @@
     <h3>Agregar gasto</h3>
     <form id="add-expense-form" class="expense-form">
       <input type="text" id="expense-desc" placeholder="Descripción (ej: Supermercado)" required>
-      <input type="number" id="expense-amount" placeholder="Monto (CLP)" min="1" required>
+      <input type="text" inputmode="numeric" autocomplete="off" class="money" id="expense-amount" placeholder="Monto (CLP)" required>
       <select id="expense-category"></select>
       <select id="expense-payer" required></select>
       <select id="expense-split-method">
@@ -115,6 +116,6 @@
   </div>
 </section>
 
-<script src="/static/js/app.js"></script>
+<script src="/static/js/app.js?v=5"></script>
 </body>
 </html>

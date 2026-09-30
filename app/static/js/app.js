@@ -29,8 +29,23 @@ function fmt(n) {
 
 function categoryIcon(key) {
   const cat = categories.find((c) => c.key === key);
-  return cat ? cat.icon : "📦";
+  if (!cat) return `<span class="category-badge" style="background:#9ca3af">OT</span>`;
+  return `<span class="category-badge" style="background:${cat.color}">${cat.abbr}</span>`;
 }
+
+
+// ---------- Montos con puntos automáticos (1.500.000) ----------
+function formatMoneyInput(input) {
+  const digits = input.value.replace(/\D/g, "").replace(/^0+(?=\d)/, "");
+  input.value = digits ? Number(digits).toLocaleString("es-CL") : "";
+}
+function moneyValue(input) {
+  return parseInt(input.value.replace(/\D/g, ""), 10) || 0;
+}
+function attachMoney(input) {
+  input.addEventListener("input", () => formatMoneyInput(input));
+}
+document.querySelectorAll("input.money").forEach(attachMoney);
 
 // ---------- Tabs de login/registro ----------
 document.querySelectorAll(".tab-btn").forEach((btn) => {
@@ -104,7 +119,7 @@ async function loadCategories() {
   if (categories.length) return;
   categories = await apiFetch("/categories");
   const select = document.getElementById("expense-category");
-  select.innerHTML = categories.map((c) => `<option value="${c.key}">${c.icon} ${capitalize(c.key)}</option>`).join("");
+  select.innerHTML = categories.map((c) => `<option value="${c.key}">${c.label}</option>`).join("");
 }
 
 function capitalize(s) {
@@ -124,7 +139,7 @@ async function loadReminderBanner() {
         <div class="reminder-banner owed">
           <p class="balance-hero-label">Tu saldo neto</p>
           <p class="balance-hero-number">${fmt(0)}</p>
-          <h3>✅ Estás al día en todos tus grupos</h3>
+          <h3>Estás al día en todos tus grupos</h3>
         </div>
       `;
       return;
@@ -147,7 +162,7 @@ async function loadReminderBanner() {
       <div class="reminder-banner ${cls}">
         <p class="balance-hero-label">${label}</p>
         <p class="balance-hero-number">${fmt(Math.abs(neto))}</p>
-        <h3>📋 Detalle por grupo</h3>
+        <h3>Detalle por grupo</h3>
         <ul>${lines}</ul>
       </div>
     `;
@@ -181,7 +196,7 @@ async function loadGroups() {
     const li = document.createElement("li");
     li.className = "group-item";
     li.style.animationDelay = `${i * 0.04}s`;
-    li.innerHTML = `<span>${g.name}</span><span>${g.members.length} integrantes →</span>`;
+    li.innerHTML = `<span>${g.name}</span><span>${g.members.length} ${g.members.length === 1 ? "integrante" : "integrantes"} →</span>`;
     li.addEventListener("click", () => openGroup(g.id));
     list.appendChild(li);
   });
@@ -209,7 +224,7 @@ async function refreshGroupDetail() {
   group.members.forEach((m) => {
     const chip = document.createElement("span");
     chip.className = "chip";
-    chip.textContent = m.name;
+    chip.innerHTML = `<span class="avatar">${m.name.charAt(0).toUpperCase()}</span>${m.name}`;
     chips.appendChild(chip);
   });
 
@@ -248,7 +263,7 @@ document.getElementById("add-member-form").addEventListener("submit", async (e) 
 // ---------- Sueldos ----------
 document.getElementById("income-form").addEventListener("submit", async (e) => {
   e.preventDefault();
-  const income = parseFloat(document.getElementById("my-income").value);
+  const income = moneyValue(document.getElementById("my-income"));
   try {
     await apiFetch(`/groups/${currentGroupId}/my-income`, {
       method: "PUT",
@@ -296,11 +311,12 @@ function buildManualSplitBox() {
   box.innerHTML = currentGroupMembers.map((m) => `
     <div class="manual-split-row">
       <label>${m.name}</label>
-      <input type="number" min="0" class="manual-share-input" data-user-id="${m.id}" placeholder="0" value="0">
+      <input type="text" inputmode="numeric" class="money manual-share-input" data-user-id="${m.id}" placeholder="0">
     </div>
   `).join("") + `<div class="manual-split-total" id="manual-split-total"></div>`;
 
   box.querySelectorAll(".manual-share-input").forEach((input) => {
+    attachMoney(input);
     input.addEventListener("input", updateManualSplitTotal);
   });
   updateManualSplitTotal();
@@ -312,14 +328,14 @@ function updateManualSplitTotal() {
 
   const inputs = box.querySelectorAll(".manual-share-input");
   let sum = 0;
-  inputs.forEach((i) => { sum += parseFloat(i.value) || 0; });
+  inputs.forEach((i) => { sum += moneyValue(i); });
 
-  const amount = parseFloat(document.getElementById("expense-amount").value) || 0;
+  const amount = moneyValue(document.getElementById("expense-amount"));
   const totalDiv = document.getElementById("manual-split-total");
   const diff = amount - sum;
 
   if (Math.abs(diff) < 0.5) {
-    totalDiv.textContent = `✅ Suma: ${fmt(sum)} (coincide con el total)`;
+    totalDiv.textContent = `Suma: ${fmt(sum)} (coincide con el total)`;
     totalDiv.style.color = "var(--success)";
   } else {
     totalDiv.textContent = `Suma: ${fmt(sum)} · Faltan ${fmt(diff)} para llegar al total (${fmt(amount)})`;
@@ -331,7 +347,7 @@ function updateManualSplitTotal() {
 document.getElementById("add-expense-form").addEventListener("submit", async (e) => {
   e.preventDefault();
   const description = document.getElementById("expense-desc").value;
-  const amount = parseFloat(document.getElementById("expense-amount").value);
+  const amount = moneyValue(document.getElementById("expense-amount"));
   const paid_by_id = parseInt(document.getElementById("expense-payer").value);
   const split_method = document.getElementById("expense-split-method").value;
   const category = document.getElementById("expense-category").value;
@@ -342,7 +358,7 @@ document.getElementById("add-expense-form").addEventListener("submit", async (e)
     const inputs = document.querySelectorAll(".manual-share-input");
     payload.manual_shares = Array.from(inputs).map((i) => ({
       user_id: parseInt(i.dataset.userId),
-      amount: parseFloat(i.value) || 0,
+      amount: moneyValue(i),
     }));
   }
 
@@ -383,12 +399,12 @@ async function loadExpenses() {
     if (mySplit && !mySplit.settled) {
       myStatusHtml = `<button class="mark-paid-btn" data-split-id="${mySplit.id}">Marcar como pagado</button>`;
     } else if (mySplit && mySplit.settled) {
-      myStatusHtml = `<span class="settled-badge">✅ Pagado</span>`;
+      myStatusHtml = `<span class="settled-badge">Pagado</span>`;
     }
 
     li.innerHTML = `
       <div class="expense-row">
-        <div class="expense-icon">${icon}</div>
+        ${icon}
         <div>
           <strong>${exp.description}</strong><br>
           <small>Pagó ${exp.paid_by_name} · ${fmt(exp.amount)} · ${methodLabel}</small>
@@ -396,7 +412,7 @@ async function loadExpenses() {
       </div>
       <div style="display:flex; align-items:center; gap:8px;">
         ${myStatusHtml}
-        <button class="delete-btn" data-id="${exp.id}">🗑</button>
+        <button class="delete-btn" data-id="${exp.id}" title="Eliminar gasto">×</button>
       </div>
     `;
     li.querySelector(".delete-btn").addEventListener("click", async () => {
@@ -438,7 +454,7 @@ async function loadBalances() {
   const simplifiedList = document.getElementById("simplified-list");
   simplifiedList.innerHTML = "";
   if (simplified.length === 0) {
-    simplifiedList.innerHTML = "<li>Todas las cuentas están saldadas ✅</li>";
+    simplifiedList.innerHTML = "<li>Todas las cuentas están saldadas</li>";
   }
   simplified.forEach((tx) => {
     const li = document.createElement("li");

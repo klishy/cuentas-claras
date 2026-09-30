@@ -1,4 +1,4 @@
-# 💸 Cuentas Claras
+# Cuentas Claras
 
 App web para dividir gastos compartidos entre grupos (arriendo, salidas, viajes, proyectos).
 Piensa "Splitwise" pero simple, en español y pensada para venderla directo a estudiantes.
