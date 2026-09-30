@@ -5,9 +5,22 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>fasti</title>
 <meta name="theme-color" content="#f1ecf7">
-<link rel="stylesheet" href="/static/css/style.css?v=6">
+<link rel="stylesheet" href="/static/css/style.css?v=8">
 </head>
 <body>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs>
+<symbol id="i-mail" viewBox="0 0 24 24"><path d="M3 6h18v12H3z"/><path d="M3 7l9 6 9-6"/></symbol>
+<symbol id="i-lock" viewBox="0 0 24 24"><path d="M6 11h12v9H6z"/><path d="M8 11V8a4 4 0 018 0v3"/></symbol>
+<symbol id="i-user" viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21c1-4 4-6 8-6s7 2 8 6"/></symbol>
+<symbol id="i-cal" viewBox="0 0 24 24"><path d="M4 6h16v14H4z"/><path d="M4 10h16M8 3v4M16 3v4"/></symbol>
+<symbol id="i-pen" viewBox="0 0 24 24"><path d="M4 20h4L19 9l-4-4L4 16z"/></symbol>
+<symbol id="t-home" viewBox="0 0 24 24"><path d="M3 11l9-8 9 8"/><path d="M5 10v10h14V10M10 20v-6h4v6"/></symbol>
+<symbol id="t-out" viewBox="0 0 24 24"><path d="M5 4h14l-7 8z"/><path d="M12 12v7M8 20h8"/></symbol>
+<symbol id="t-repeat" viewBox="0 0 24 24"><path d="M17 2l4 4-4 4M3 11V9a3 3 0 013-3h15M7 22l-4-4 4-4M21 13v2a3 3 0 01-3 3H3"/></symbol>
+<symbol id="t-bolt" viewBox="0 0 24 24"><path d="M13 2L4 14h7l-1 8 9-12h-7z"/></symbol>
+<symbol id="t-folder" viewBox="0 0 24 24"><path d="M3 7a2 2 0 012-2h4l2 2h8a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2z"/></symbol>
+</defs></svg>
 
 <header class="topbar">
   <div class="brand"><button id="menu-btn" class="icon-btn hidden" aria-label="Abrir grupos"><svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M4 7h16M4 12h16M4 17h16"/></svg></button><h1>fasti</h1></div>
@@ -21,39 +34,58 @@
 <aside id="drawer" class="drawer" aria-label="Tus grupos">
   <div class="drawer-head"><h2>Tus grupos</h2><button id="drawer-close" class="icon-btn" aria-label="Cerrar">&times;</button></div>
   <div id="drawer-body"></div>
+  <h4>Métodos de pago</h4>
+  <ul class="list pay-list" aria-disabled="true">
+    <li><span class="pay-badge" style="background:#1ab1ea">M</span><span>Mercado Pago</span><em>Próximamente</em></li>
+    <li><span class="pay-badge" style="background:#7a3b72">T</span><span>Tarjeta</span><em>Próximamente</em></li>
+    <li><span class="pay-badge" style="background:#f0606b">B</span><span>Transferencia</span><em>Próximamente</em></li>
+  </ul>
 </aside>
 
 <!-- ---------- AUTENTICACIÓN ---------- -->
 <section id="auth-screen" class="screen">
-  <div class="card auth-card">
+  <div class="glass">
+    <label class="avatar-pick" title="Foto de perfil (opcional)">
+      <img id="avatar-preview" alt="" hidden>
+      <svg class="silhouette" viewBox="0 0 24 24"><circle cx="12" cy="8" r="4.5"/><path d="M3.5 21c.8-4.6 4.4-7 8.5-7s7.7 2.4 8.5 7z"/></svg>
+      <input type="file" id="avatar-input" accept="image/*" hidden>
+    </label>
+    <p class="avatar-hint">Toca para agregar tu foto (opcional)</p>
     <div class="tabs">
       <button class="tab-btn active" data-tab="login">Iniciar sesión</button>
       <button class="tab-btn" data-tab="register">Crear cuenta</button>
     </div>
-
     <form id="login-form" class="tab-content active">
-      <input type="email" id="login-email" placeholder="Correo" required>
-      <input type="password" id="login-password" placeholder="Contraseña" required>
-      <button type="submit">Entrar</button>
+      <div class="ufield"><svg class="ic"><use href="#i-mail"/></svg><input type="email" id="login-email" placeholder="Correo" required autocomplete="email"></div>
+      <div class="ufield"><svg class="ic"><use href="#i-lock"/></svg><input type="password" id="login-password" placeholder="Contraseña" required autocomplete="current-password"></div>
+      <div class="row-opts"><label class="remember"><input type="checkbox" id="remember" checked><span>Recordarme</span></label><a href="#" id="forgot">¿Olvidaste tu contraseña?</a></div>
+      <button type="submit" class="login-btn">Ingresar</button>
       <p class="error" id="login-error"></p>
     </form>
-
     <form id="register-form" class="tab-content">
-      <input type="text" id="register-name" placeholder="Nombre" required>
-      <input type="email" id="register-email" placeholder="Correo" required>
-      <input type="password" id="register-password" placeholder="Contraseña" required>
-      <button type="submit">Crear cuenta</button>
+      <div class="ufield"><svg class="ic"><use href="#i-user"/></svg><input type="text" id="register-name" placeholder="Nombre" required autocomplete="name"></div>
+      <div class="ufield"><svg class="ic"><use href="#i-cal"/></svg><input type="date" id="register-birth" placeholder="Fecha de nacimiento" required max="2100-01-01"></div>
+      <div class="ufield"><svg class="ic"><use href="#i-mail"/></svg><input type="email" id="register-email" placeholder="Correo" required autocomplete="email"></div>
+      <div class="ufield"><svg class="ic"><use href="#i-lock"/></svg><input type="password" id="register-password" placeholder="Contraseña" required autocomplete="new-password"></div>
+      <button type="submit" class="login-btn">Crear cuenta</button>
       <p class="error" id="register-error"></p>
     </form>
   </div>
 </section>
 
-<!-- ---------- LISTA DE GRUPOS ---------- -->
+<!-- ---------- INICIO: VENTANAS ---------- -->
 <section id="groups-screen" class="screen hidden">
+  <div class="home-head"><h2>Mis espacios</h2><span id="home-avatar" class="avatar-lg"></span></div>
   <div id="reminder-banner-container"></div>
+  <div class="tiles-head"><h3>Tus ventanas</h3><button id="edit-tiles" class="link-btn">Editar</button></div>
+  <div id="tiles" class="tiles"></div>
+</section>
 
+<!-- ---------- VENTANA ABIERTA: SUS GRUPOS ---------- -->
+<section id="section-screen" class="screen hidden">
+  <button id="back-home" class="back-btn">← Inicio</button>
   <div class="card">
-    <h2>Tus grupos</h2>
+    <h2 id="section-name"></h2>
     <form id="create-group-form" class="inline-form">
       <input type="text" id="new-group-name" placeholder="Nombre del grupo (ej: Depto 2026)" required>
       <button type="submit">+ Crear grupo</button>
@@ -124,6 +156,6 @@
   </div>
 </section>
 
-<script src="/static/js/app.js?v=6"></script>
+<script src="/static/js/app.js?v=8"></script>
 </body>
 </html>

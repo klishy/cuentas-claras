@@ -3,6 +3,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 from fastapi.middleware.cors import CORSMiddleware
 import os
+from sqlalchemy import inspect, text
 
 from . import models
 from .database import engine
@@ -11,6 +12,13 @@ from .routers import auth_router, groups_router
 from .routers.expenses_router import router as expenses_router, balance_router
 
 models.Base.metadata.create_all(bind=engine)
+
+# Migración ligera: agrega columnas nuevas a bases de datos existentes
+with engine.begin() as _c:
+    _cols = {c["name"] for c in inspect(engine).get_columns("users")}
+    for _n in ("birth_date", "avatar", "layout"):
+        if _n not in _cols:
+            _c.execute(text(f"ALTER TABLE users ADD COLUMN {_n} TEXT"))
 
 app = FastAPI(title="Cuentas Claras API", version="1.0.0")
 

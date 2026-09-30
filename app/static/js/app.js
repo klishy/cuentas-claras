@@ -1,6 +1,6 @@
 const API = ""; // mismo origen
-let token = localStorage.getItem("token");
-let currentUser = JSON.parse(localStorage.getItem("user") || "null");
+let token = localStorage.getItem("token") || sessionStorage.getItem("token");
+let currentUser = JSON.parse(localStorage.getItem("user") || sessionStorage.getItem("user") || "null");
 let currentGroupId = null;
 let currentGroupMembers = [];
 let categories = [];
@@ -19,6 +19,7 @@ async function apiFetch(path, options = {}) {
 }
 
 function show(id) {
+  document.body.classList.toggle("auth-mode", id === "auth-screen");
   document.querySelectorAll(".screen").forEach((el) => el.classList.add("hidden"));
   document.getElementById(id).classList.remove("hidden");
 }
@@ -67,7 +68,7 @@ document.getElementById("login-form").addEventListener("submit", async (e) => {
       method: "POST",
       body: JSON.stringify({ email, password }),
     });
-    onAuthSuccess(data);
+    onAuthSuccess(data, document.getElementById("remember").checked);
   } catch (err) {
     document.getElementById("login-error").textContent = err.message;
   }
@@ -81,7 +82,7 @@ document.getElementById("register-form").addEventListener("submit", async (e) =>
   try {
     const data = await apiFetch("/auth/register", {
       method: "POST",
-      body: JSON.stringify({ name, email, password }),
+      body: JSON.stringify({ name, email, password, birth_date: document.getElementById("register-birth").value, avatar: avatarData }),
     });
     onAuthSuccess(data);
   } catch (err) {
@@ -89,17 +90,17 @@ document.getElementById("register-form").addEventListener("submit", async (e) =>
   }
 });
 
-function onAuthSuccess(data) {
+function onAuthSuccess(data, remember = true) {
   token = data.access_token;
   currentUser = data.user;
-  localStorage.setItem("token", token);
-  localStorage.setItem("user", JSON.stringify(currentUser));
+  const st = remember ? localStorage : sessionStorage;
+  st.setItem("token", token);
+  st.setItem("user", JSON.stringify(currentUser));
   initAfterLogin();
 }
 
 document.getElementById("logout-btn").addEventListener("click", () => {
-  localStorage.removeItem("token");
-  localStorage.removeItem("user");
+  ["token", "user"].forEach((k) => { localStorage.removeItem(k); sessionStorage.removeItem(k); });
   token = null;
   currentUser = null;
   document.getElementById("user-info").classList.add("hidden");
@@ -113,6 +114,8 @@ async function initAfterLogin() {
   document.getElementById("menu-btn").classList.remove("hidden");
   document.getElementById("user-name-display").textContent = `Hola, ${currentUser.name}`;
   await loadCategories();
+  await loadLayout();
+  renderHomeHeader();
   await loadGroups();
   await loadReminderBanner();
   show("groups-screen");
@@ -179,7 +182,8 @@ document.getElementById("create-group-form").addEventListener("submit", async (e
   e.preventDefault();
   const name = document.getElementById("new-group-name").value;
   try {
-    await apiFetch("/groups/", { method: "POST", body: JSON.stringify({ name }) });
+    const ng = await apiFetch("/groups/", { method: "POST", body: JSON.stringify({ name }) });
+    if (ng && ng.id) { layout.assign[ng.id] = currentSectionId; saveLayout(); }
     document.getElementById("new-group-name").value = "";
     document.getElementById("group-error").textContent = "";
     loadGroups();
@@ -194,7 +198,7 @@ async function loadGroups() {
 }
 
 document.getElementById("back-to-groups").addEventListener("click", () => {
-  show("groups-screen");
+  show(currentSectionId ? "section-screen" : "groups-screen");
   loadGroups();
   loadReminderBanner();
 });
@@ -497,14 +501,15 @@ function groupRow(g, favs, inDrawer) {
   star.addEventListener("click", (e) => { e.stopPropagation(); toggleFav(g.id); });
   right.appendChild(star);
   li.append(name, right);
-  li.addEventListener("click", () => { closeDrawer(); openGroup(g.id); });
+  li.addEventListener("click", () => { closeDrawer(); currentSectionId = sectionOf(g); openGroup(g.id); });
   return li;
 }
 function renderGroupLists() {
   const favs = getFavs();
-  const sorted = [...allGroups].sort((a, b) => favs.has(b.id) - favs.has(a.id));
+  const sorted = allGroups.filter((g) => !currentSectionId || sectionOf(g) === currentSectionId).sort((a, b) => favs.has(b.id) - favs.has(a.id));
   const list = document.getElementById("groups-list");
   list.innerHTML = "";
+  renderTiles();
   if (!sorted.length) list.innerHTML = "<li>Aún no tienes grupos. ¡Crea el primero!</li>";
   sorted.forEach((g) => list.appendChild(groupRow(g, favs, false)));
 
@@ -525,6 +530,163 @@ function renderGroupLists() {
   section(favList.length ? "Otros grupos" : "Todos los grupos", others);
   if (!allGroups.length) body.innerHTML = '<p class="hint-text">Aún no tienes grupos.</p>';
 }
+
+// ---------- Registro: foto, pestañas y login ----------
+let avatarData = null;
+document.getElementById("avatar-input").addEventListener("change", (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
+  const img = new Image();
+  const url = URL.createObjectURL(file);
+  img.onload = () => {
+    const c = document.createElement("canvas");
+    c.width = c.height = 256;
+    const s = Math.min(img.width, img.height);
+    c.getContext("2d").drawImage(img, (img.width - s) / 2, (img.height - s) / 2, s, s, 0, 0, 256, 256);
+    avatarData = c.toDataURL("image/jpeg", 0.8);
+    const p = document.getElementById("avatar-preview");
+    p.src = avatarData; p.hidden = false;
+    document.querySelector(".silhouette").style.display = "none";
+    URL.revokeObjectURL(url);
+  };
+  img.src = url;
+});
+document.querySelectorAll(".tab-btn").forEach((b) => b.addEventListener("click", () => {
+  document.querySelector(".glass").classList.toggle("register-mode", b.dataset.tab === "register");
+}));
+document.getElementById("forgot").addEventListener("click", (e) => {
+  e.preventDefault();
+  document.getElementById("login-error").textContent = "Recuperar contraseña estará disponible pronto.";
+});
+
+// ---------- Ventanas (secciones) personalizables ----------
+const DEFAULT_SECTIONS = [
+  { id: "s-hogar", name: "Hogar", icon: "home" },
+  { id: "s-salidas", name: "Salidas", icon: "out" },
+  { id: "s-fijos", name: "Gastos continuos", icon: "repeat" },
+  { id: "s-imprevistos", name: "Imprevistos", icon: "bolt" },
+];
+let layout = { sections: DEFAULT_SECTIONS.map((s) => ({ ...s })), assign: {}, active: null };
+let currentSectionId = null;
+let editMode = false;
+
+async function loadLayout() {
+  try {
+    const r = await apiFetch("/auth/me/layout");
+    if (r.layout) layout = JSON.parse(r.layout);
+  } catch (e) { /* usa la distribución por defecto */ }
+}
+function saveLayout() {
+  apiFetch("/auth/me/layout", { method: "PUT", body: JSON.stringify({ layout: JSON.stringify(layout) }) }).catch(() => {});
+}
+function sectionOf(g) {
+  const id = layout.assign[g.id];
+  return layout.sections.some((s) => s.id === id) ? id : (layout.sections[0] || {}).id;
+}
+function renderHomeHeader() {
+  const box = document.getElementById("home-avatar");
+  box.innerHTML = "";
+  if (currentUser.avatar) {
+    const im = document.createElement("img");
+    im.src = currentUser.avatar;
+    box.appendChild(im);
+  } else {
+    box.textContent = currentUser.name.charAt(0).toUpperCase();
+  }
+}
+function renderTiles() {
+  const grid = document.getElementById("tiles");
+  grid.innerHTML = "";
+  grid.classList.toggle("editing", editMode);
+  document.getElementById("edit-tiles").textContent = editMode ? "Listo" : "Editar";
+  layout.sections.forEach((s, i) => {
+    const n = allGroups.filter((g) => sectionOf(g) === s.id).length;
+    const t = document.createElement("div");
+    t.className = "tile" + (s.id === layout.active ? " active" : "");
+    t.dataset.id = s.id;
+    t.style.order = i;
+    t.innerHTML = `<svg class="ic tile-ic"><use href="#t-${s.icon || "folder"}"/></svg><strong></strong><small>${n} ${n === 1 ? "grupo" : "grupos"}</small>`;
+    t.querySelector("strong").textContent = s.name;
+    if (editMode) {
+      t.insertAdjacentHTML("beforeend", `<button class="tile-act" data-a="ren" style="right:44px" aria-label="Renombrar"><svg class="ic" width="16" height="16"><use href="#i-pen"/></svg></button><button class="tile-act" data-a="del" style="right:8px" aria-label="Eliminar">&times;</button>`);
+      t.querySelector('[data-a="ren"]').addEventListener("click", () => {
+        const name = (prompt("Nuevo nombre de la ventana", s.name) || "").trim();
+        if (name) { s.name = name; saveLayout(); renderTiles(); }
+      });
+      t.querySelector('[data-a="del"]').addEventListener("click", () => {
+        if (layout.sections.length < 2) return alert("Debe quedar al menos una ventana.");
+        if (!confirm(`¿Eliminar "${s.name}"? Sus grupos pasarán a la primera ventana.`)) return;
+        layout.sections = layout.sections.filter((x) => x.id !== s.id);
+        saveLayout(); renderTiles();
+      });
+    } else {
+      t.addEventListener("click", () => openSection(s.id));
+    }
+    grid.appendChild(t);
+  });
+  const add = document.createElement("div");
+  add.className = "tile tile-add";
+  add.textContent = "+ Nueva ventana";
+  add.addEventListener("click", () => {
+    const name = (prompt("Nombre de la nueva ventana (ej: Viajes)") || "").trim();
+    if (!name) return;
+    layout.sections.push({ id: "s-" + Date.now(), name, icon: "folder" });
+    saveLayout(); renderTiles();
+  });
+  grid.appendChild(add);
+}
+function openSection(id) {
+  currentSectionId = id;
+  layout.active = id;
+  saveLayout();
+  document.getElementById("section-name").textContent = layout.sections.find((s) => s.id === id).name;
+  renderGroupLists();
+  show("section-screen");
+}
+document.getElementById("back-home").addEventListener("click", () => {
+  currentSectionId = null;
+  renderGroupLists();
+  loadReminderBanner();
+  show("groups-screen");
+});
+document.getElementById("edit-tiles").addEventListener("click", () => { editMode = !editMode; renderTiles(); });
+
+// Arrastrar ventanas (mouse y touch) en modo edición
+(function enableTileDrag() {
+  const grid = document.getElementById("tiles");
+  let el = null, sx = 0, sy = 0;
+  grid.addEventListener("pointerdown", (e) => {
+    if (!editMode || e.target.closest(".tile-act")) return;
+    const t = e.target.closest(".tile[data-id]");
+    if (!t) return;
+    el = t; sx = e.clientX; sy = e.clientY;
+    t.setPointerCapture(e.pointerId);
+    t.classList.add("dragging");
+  });
+  grid.addEventListener("pointermove", (e) => {
+    if (!el) return;
+    el.style.pointerEvents = "none";
+    const over = document.elementFromPoint(e.clientX, e.clientY)?.closest(".tile[data-id]");
+    if (over && over !== el) {
+      const a = el.getBoundingClientRect();
+      const tmp = over.style.order;
+      over.style.order = el.style.order;
+      el.style.order = tmp;
+      const b = el.getBoundingClientRect();
+      sx += b.left - a.left; sy += b.top - a.top;
+    }
+    el.style.transform = `translate(${e.clientX - sx}px, ${e.clientY - sy}px)`;
+  });
+  const end = () => {
+    if (!el) return;
+    const ids = [...grid.querySelectorAll(".tile[data-id]")].sort((a, b) => a.style.order - b.style.order).map((t) => t.dataset.id);
+    layout.sections.sort((a, b) => ids.indexOf(a.id) - ids.indexOf(b.id));
+    el = null;
+    saveLayout(); renderTiles();
+  };
+  grid.addEventListener("pointerup", end);
+  grid.addEventListener("pointercancel", end);
+})();
 
 // ---------- Inicio ----------
 if (token && currentUser) {

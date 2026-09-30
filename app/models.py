@@ -1,5 +1,5 @@
 from sqlalchemy import (
-    Column, Integer, String, Float, ForeignKey, DateTime, Boolean
+    Column, Integer, String, Float, ForeignKey, DateTime, Boolean, Text
 )
 from sqlalchemy.orm import relationship
 from sqlalchemy.ext.associationproxy import association_proxy
@@ -15,6 +15,9 @@ class User(Base):
     name = Column(String, nullable=False)
     email = Column(String, unique=True, index=True, nullable=False)
     hashed_password = Column(String, nullable=False)
+    birth_date = Column(String)
+    avatar = Column(Text)
+    layout = Column(Text)
     is_premium = Column(Boolean, default=False)  # true si pagó la suscripción
     created_at = Column(DateTime, default=datetime.utcnow)
 

@@ -68,7 +68,7 @@ crear un grupo, agregar gastos y ver los balances.
   - **Montos manuales**: eliges tú mismo cuánto le corresponde pagar a cada persona (útil
     para gastos que no se reparten proporcionalmente, ej. alguien pidió más comida). La
     app valida que los montos sumen exactamente el total del gasto.
-- **Categorías de gasto**: cada gasto se clasifica con un ícono (🏠 arriendo, 🛒 supermercado,
+- **Categorías de gasto**: cada gasto se clasifica con una categoría de color
   🍔 comida, 🚌 transporte, 💡 servicios, 🎉 salidas, 💊 salud, 📦 otros)
 - **Historial de pagos**: cada persona puede marcar su parte de un gasto como pagada; queda
   registrada la fecha exacta en que se saldó

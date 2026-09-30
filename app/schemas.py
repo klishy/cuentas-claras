@@ -1,6 +1,6 @@
 from pydantic import BaseModel, EmailStr
 from typing import List, Optional
-from datetime import datetime
+from datetime import datetime, date
 
 
 # ---------- Usuario ----------
@@ -8,6 +8,8 @@ class UserCreate(BaseModel):
     name: str
     email: EmailStr
     password: str
+    birth_date: date
+    avatar: Optional[str] = None
 
 
 class UserLogin(BaseModel):
@@ -20,6 +22,8 @@ class UserOut(BaseModel):
     name: str
     email: EmailStr
     is_premium: bool = False
+    birth_date: Optional[str] = None
+    avatar: Optional[str] = None
 
     class Config:
         from_attributes = True
@@ -133,3 +137,7 @@ class ResumenPendientes(BaseModel):
     total_le_deben: float
     total_debe: float
     detalle: List[ResumenGrupoEntry]
+
+
+class LayoutIn(BaseModel):
+    layout: str
