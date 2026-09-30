@@ -117,11 +117,22 @@ async function loadReminderBanner() {
   container.innerHTML = "";
   try {
     const resumen = await apiFetch("/groups/resumen/pendientes");
-    if (resumen.total_le_deben < 0.5 && resumen.total_debe < 0.5) return;
+    const neto = resumen.total_le_deben - resumen.total_debe;
+
+    if (resumen.total_le_deben < 0.5 && resumen.total_debe < 0.5) {
+      container.innerHTML = `
+        <div class="reminder-banner owed">
+          <p class="balance-hero-label">Tu saldo neto</p>
+          <p class="balance-hero-number">${fmt(0)}</p>
+          <h3>✅ Estás al día en todos tus grupos</h3>
+        </div>
+      `;
+      return;
+    }
 
     let cls = "mixed";
-    if (resumen.total_debe > 0 && resumen.total_le_deben === 0) cls = "owe";
-    if (resumen.total_le_deben > 0 && resumen.total_debe === 0) cls = "owed";
+    if (neto < 0) cls = "owe";
+    if (neto > 0) cls = "owed";
 
     const lines = resumen.detalle.map((d) => {
       const texto = d.balance > 0
@@ -130,9 +141,13 @@ async function loadReminderBanner() {
       return `<li>${texto}</li>`;
     }).join("");
 
+    const label = neto >= 0 ? "En total te deben" : "En total debes";
+
     container.innerHTML = `
       <div class="reminder-banner ${cls}">
-        <h3>📋 Resumen de tus cuentas pendientes</h3>
+        <p class="balance-hero-label">${label}</p>
+        <p class="balance-hero-number">${fmt(Math.abs(neto))}</p>
+        <h3>📋 Detalle por grupo</h3>
         <ul>${lines}</ul>
       </div>
     `;
@@ -162,9 +177,10 @@ async function loadGroups() {
   if (groups.length === 0) {
     list.innerHTML = "<li>Aún no tienes grupos. ¡Crea el primero!</li>";
   }
-  groups.forEach((g) => {
+  groups.forEach((g, i) => {
     const li = document.createElement("li");
     li.className = "group-item";
+    li.style.animationDelay = `${i * 0.04}s`;
     li.innerHTML = `<span>${g.name}</span><span>${g.members.length} integrantes →</span>`;
     li.addEventListener("click", () => openGroup(g.id));
     list.appendChild(li);
@@ -356,8 +372,9 @@ async function loadExpenses() {
   }
   const methodLabels = { equal: "partes iguales", income: "proporcional al sueldo", manual: "montos manuales" };
 
-  expenses.slice().reverse().forEach((exp) => {
+  expenses.slice().reverse().forEach((exp, i) => {
     const li = document.createElement("li");
+    li.style.animationDelay = `${i * 0.04}s`;
     const methodLabel = methodLabels[exp.split_method] || exp.split_method;
     const icon = categoryIcon(exp.category);
 
