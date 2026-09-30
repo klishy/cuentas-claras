@@ -126,3 +126,27 @@ button:active{transform:scale(.98)}
 .manual-split-box{border-radius:16px;border-color:#e3d6e8}
 .error:empty{min-height:0;margin:0}
 .list+h3{margin-top:18px}
+
+/* Etiquetas del formulario */
+.field{display:flex;flex-direction:column;gap:5px;min-width:0}
+.field>span{font-size:13px;font-weight:700;color:var(--text)}
+@media (min-width:700px){.expense-form{grid-template-columns:repeat(3,1fr)}.expense-form button{grid-column:1/-1;justify-self:start}}
+/* Menú lateral */
+.brand{display:flex;align-items:center;gap:4px}
+.icon-btn,.icon-btn:hover,.star-btn,.star-btn:hover{background:none;box-shadow:none;color:var(--primary);padding:8px;border-radius:12px;line-height:0}
+.icon-btn:hover,.star-btn:hover{background:rgba(122,59,114,.1)}
+.icon-btn.hidden{display:none}
+#drawer-close{font-size:28px;line-height:1}
+.star-btn{color:var(--muted)}
+.star-btn svg{fill:none;stroke:currentColor;stroke-width:2;stroke-linejoin:round}
+.star-btn.on,.star-btn.on:hover{color:var(--accent)}
+.star-btn.on svg{fill:currentColor}
+.g-right{display:flex;align-items:center;gap:6px}
+.overlay{position:fixed;inset:0;background:rgba(58,36,64,.4);opacity:0;pointer-events:none;transition:opacity .25s;z-index:20}
+.overlay.open{opacity:1;pointer-events:auto}
+.drawer{position:fixed;top:0;left:0;bottom:0;width:min(310px,84vw);background:#fff;z-index:30;transform:translateX(-100%);visibility:hidden;transition:transform .25s,visibility 0s .25s;padding:calc(14px + env(safe-area-inset-top)) 14px 20px;overflow-y:auto;border-radius:0 26px 26px 0;box-shadow:8px 0 30px rgba(122,59,114,.2)}
+.drawer.open{transform:none;visibility:visible;transition:transform .25s}
+.drawer-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:6px}
+.drawer-head h2{margin:0;font-size:20px;font-weight:800}
+.drawer h4{margin:16px 0 4px;font-size:13px;color:var(--muted);font-weight:700}
+.group-item.current{background:var(--soft);color:var(--primary)}

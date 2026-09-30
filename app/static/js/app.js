@@ -103,11 +103,14 @@ document.getElementById("logout-btn").addEventListener("click", () => {
   token = null;
   currentUser = null;
   document.getElementById("user-info").classList.add("hidden");
+  document.getElementById("menu-btn").classList.add("hidden");
+  closeDrawer();
   show("auth-screen");
 });
 
 async function initAfterLogin() {
   document.getElementById("user-info").classList.remove("hidden");
+  document.getElementById("menu-btn").classList.remove("hidden");
   document.getElementById("user-name-display").textContent = `Hola, ${currentUser.name}`;
   await loadCategories();
   await loadGroups();
@@ -186,20 +189,8 @@ document.getElementById("create-group-form").addEventListener("submit", async (e
 });
 
 async function loadGroups() {
-  const groups = await apiFetch("/groups/");
-  const list = document.getElementById("groups-list");
-  list.innerHTML = "";
-  if (groups.length === 0) {
-    list.innerHTML = "<li>Aún no tienes grupos. ¡Crea el primero!</li>";
-  }
-  groups.forEach((g, i) => {
-    const li = document.createElement("li");
-    li.className = "group-item";
-    li.style.animationDelay = `${i * 0.04}s`;
-    li.innerHTML = `<span>${g.name}</span><span>${g.members.length} ${g.members.length === 1 ? "integrante" : "integrantes"} →</span>`;
-    li.addEventListener("click", () => openGroup(g.id));
-    list.appendChild(li);
-  });
+  allGroups = await apiFetch("/groups/");
+  renderGroupLists();
 }
 
 document.getElementById("back-to-groups").addEventListener("click", () => {
@@ -210,6 +201,7 @@ document.getElementById("back-to-groups").addEventListener("click", () => {
 
 async function openGroup(groupId) {
   currentGroupId = groupId;
+  renderGroupLists();
   await refreshGroupDetail();
   show("group-detail-screen");
 }
@@ -461,6 +453,77 @@ async function loadBalances() {
     li.innerHTML = `<span>${tx.from_user} → ${tx.to_user}</span><span>${fmt(tx.amount)}</span>`;
     simplifiedList.appendChild(li);
   });
+}
+
+// ---------- Menú lateral y favoritos ----------
+let allGroups = [];
+const STAR = '<svg viewBox="0 0 24 24" width="22" height="22"><path d="M12 2.5l2.9 6.1 6.6.8-4.9 4.6 1.3 6.6L12 17.3l-5.9 3.3 1.3-6.6-4.9-4.6 6.6-.8z"/></svg>';
+const drawer = document.getElementById("drawer");
+const overlay = document.getElementById("drawer-overlay");
+function openDrawer() { drawer.classList.add("open"); overlay.classList.add("open"); }
+function closeDrawer() { drawer.classList.remove("open"); overlay.classList.remove("open"); }
+document.getElementById("menu-btn").addEventListener("click", openDrawer);
+document.getElementById("drawer-close").addEventListener("click", closeDrawer);
+overlay.addEventListener("click", closeDrawer);
+document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeDrawer(); });
+
+function favKey() { return "favs_" + (currentUser ? currentUser.id : ""); }
+function getFavs() {
+  try { return new Set(JSON.parse(localStorage.getItem(favKey()) || "[]")); } catch { return new Set(); }
+}
+function toggleFav(id) {
+  const f = getFavs();
+  if (f.has(id)) f.delete(id); else f.add(id);
+  localStorage.setItem(favKey(), JSON.stringify([...f]));
+  renderGroupLists();
+}
+function groupRow(g, favs, inDrawer) {
+  const li = document.createElement("li");
+  li.className = "group-item" + (g.id === currentGroupId ? " current" : "");
+  const name = document.createElement("span");
+  name.textContent = g.name;
+  const right = document.createElement("span");
+  right.className = "g-right";
+  if (!inDrawer) {
+    const n = document.createElement("span");
+    n.textContent = `${g.members.length} ${g.members.length === 1 ? "integrante" : "integrantes"}`;
+    right.appendChild(n);
+  }
+  const star = document.createElement("button");
+  const isFav = favs.has(g.id);
+  star.className = "star-btn" + (isFav ? " on" : "");
+  star.innerHTML = STAR;
+  star.setAttribute("aria-label", isFav ? "Quitar de favoritos" : "Marcar como favorito");
+  star.addEventListener("click", (e) => { e.stopPropagation(); toggleFav(g.id); });
+  right.appendChild(star);
+  li.append(name, right);
+  li.addEventListener("click", () => { closeDrawer(); openGroup(g.id); });
+  return li;
+}
+function renderGroupLists() {
+  const favs = getFavs();
+  const sorted = [...allGroups].sort((a, b) => favs.has(b.id) - favs.has(a.id));
+  const list = document.getElementById("groups-list");
+  list.innerHTML = "";
+  if (!sorted.length) list.innerHTML = "<li>Aún no tienes grupos. ¡Crea el primero!</li>";
+  sorted.forEach((g) => list.appendChild(groupRow(g, favs, false)));
+
+  const body = document.getElementById("drawer-body");
+  body.innerHTML = "";
+  const favList = allGroups.filter((g) => favs.has(g.id));
+  const others = allGroups.filter((g) => !favs.has(g.id));
+  const section = (title, arr) => {
+    if (!arr.length) return;
+    const h = document.createElement("h4");
+    h.textContent = title;
+    const ul = document.createElement("ul");
+    ul.className = "list";
+    arr.forEach((g) => ul.appendChild(groupRow(g, favs, true)));
+    body.append(h, ul);
+  };
+  section("Favoritos", favList);
+  section(favList.length ? "Otros grupos" : "Todos los grupos", others);
+  if (!allGroups.length) body.innerHTML = '<p class="hint-text">Aún no tienes grupos.</p>';
 }
 
 // ---------- Inicio ----------
