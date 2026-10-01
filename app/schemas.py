@@ -103,6 +103,7 @@ class ExpenseOut(BaseModel):
     split_method: str
     category: str
     created_at: datetime
+    comments_count: int = 0
     splits: List[SplitOut] = []
 
     class Config:
@@ -151,3 +152,15 @@ class InviteOut(BaseModel):
 class InvitePreview(BaseModel):
     group_name: str
     members: int
+
+
+class CommentIn(BaseModel):
+    text: str
+
+
+class CommentOut(BaseModel):
+    id: int
+    user_id: int
+    user_name: str
+    text: str
+    created_at: datetime

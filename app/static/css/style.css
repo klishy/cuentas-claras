@@ -257,3 +257,19 @@ input[type=range]{padding:0;accent-color:var(--primary);width:100%}
 .join-card{max-width:420px;margin:40px auto;text-align:center}
 .join-card button{width:100%;margin-top:6px}
 @media (min-width:700px){.wa-btn{width:auto}}
+
+/* ---------- Pagos, gráfico y exportar ---------- */
+.debt-right{display:flex;align-items:center;gap:10px}
+.chart-title{margin:18px 0 8px}
+.cat-row{margin-bottom:10px}
+.cat-top{display:flex;justify-content:space-between;font-size:13px;margin-bottom:4px}
+.cat-bar{height:10px;border-radius:999px;background:var(--soft);overflow:hidden}
+.cat-bar i{display:block;height:100%;border-radius:999px}
+
+/* ---------- Comentarios y edición ---------- */
+.cm-btn,.cm-btn:hover{font-size:13px;padding:4px 2px}
+.comments-box{margin:4px 0 6px;padding:12px;background:var(--soft);border-radius:16px}
+.comment{margin:0 0 10px;font-size:14px;overflow-wrap:anywhere}
+.comment small{color:var(--muted)}
+.comment-form{display:flex;gap:8px;margin-top:6px}
+.comment-form button{padding:10px 16px}

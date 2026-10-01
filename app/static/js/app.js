@@ -125,7 +125,7 @@ async function loadCategories() {
   if (categories.length) return;
   categories = await apiFetch("/categories");
   const select = document.getElementById("expense-category");
-  select.innerHTML = categories.map((c) => `<option value="${c.key}">${c.label}</option>`).join("");
+  select.innerHTML = categories.filter((c) => c.key !== "pago").map((c) => `<option value="${c.key}">${c.label}</option>`).join("");
 }
 
 function capitalize(s) {
@@ -287,7 +287,8 @@ async function loadIncomes() {
   });
 }
 
-// ---------- División manual ----------
+// ---------- División manual / porcentajes / partes ----------
+const SPLIT_INPUT_METHODS = ["manual", "percent", "shares"];
 document.getElementById("expense-split-method").addEventListener("change", () => {
   buildManualSplitBox();
 });
@@ -299,7 +300,7 @@ function buildManualSplitBox() {
   const method = document.getElementById("expense-split-method").value;
   const box = document.getElementById("manual-split-box");
 
-  if (method !== "manual" || !currentGroupMembers.length) {
+  if (!SPLIT_INPUT_METHODS.includes(method) || !currentGroupMembers.length) {
     box.classList.remove("visible");
     box.innerHTML = "";
     return;
@@ -309,7 +310,7 @@ function buildManualSplitBox() {
   box.innerHTML = currentGroupMembers.map((m) => `
     <div class="manual-split-row">
       <label>${m.name}</label>
-      <input type="text" inputmode="numeric" class="money manual-share-input" data-user-id="${m.id}" placeholder="0">
+      <input type="text" inputmode="numeric" class="money manual-share-input" data-user-id="${m.id}" placeholder="${{ manual: "Monto", percent: "%", shares: "Partes" }[method]}">
     </div>
   `).join("") + `<div class="manual-split-total" id="manual-split-total"></div>`;
 
@@ -327,6 +328,20 @@ function updateManualSplitTotal() {
   const inputs = box.querySelectorAll(".manual-share-input");
   let sum = 0;
   inputs.forEach((i) => { sum += moneyValue(i); });
+
+  const method = document.getElementById("expense-split-method").value;
+  if (method !== "manual") {
+    const t = document.getElementById("manual-split-total");
+    if (method === "percent") {
+      t.textContent = sum === 100 ? "Suma: 100% (correcto)" : `Suma: ${sum}% · ${sum < 100 ? "faltan " + (100 - sum) : "sobran " + (sum - 100)}% para llegar a 100%`;
+      t.style.color = sum === 100 ? "var(--success)" : "var(--danger)";
+    } else {
+      const amt = moneyValue(document.getElementById("expense-amount"));
+      t.textContent = sum ? `Total: ${sum} partes · cada parte = ${fmt(amt / sum)}` : "Indica cuántas partes le toca a cada uno";
+      t.style.color = "var(--muted)";
+    }
+    return;
+  }
 
   const amount = moneyValue(document.getElementById("expense-amount"));
   const totalDiv = document.getElementById("manual-split-total");
@@ -352,7 +367,7 @@ document.getElementById("add-expense-form").addEventListener("submit", async (e)
 
   const payload = { description, amount, paid_by_id, split_method, category };
 
-  if (split_method === "manual") {
+  if (SPLIT_INPUT_METHODS.includes(split_method)) {
     const inputs = document.querySelectorAll(".manual-share-input");
     payload.manual_shares = Array.from(inputs).map((i) => ({
       user_id: parseInt(i.dataset.userId),
@@ -361,10 +376,11 @@ document.getElementById("add-expense-form").addEventListener("submit", async (e)
   }
 
   try {
-    await apiFetch(`/groups/${currentGroupId}/expenses/`, {
-      method: "POST",
+    await apiFetch(`/groups/${currentGroupId}/expenses/${editingExpenseId || ""}`, {
+      method: editingExpenseId ? "PUT" : "POST",
       body: JSON.stringify(payload),
     });
+    stopEditExpense();
     document.getElementById("expense-desc").value = "";
     document.getElementById("expense-amount").value = "";
     document.getElementById("expense-split-method").value = "equal";
@@ -384,7 +400,8 @@ async function loadExpenses() {
   if (expenses.length === 0) {
     list.innerHTML = "<li>No hay gastos registrados aún.</li>";
   }
-  const methodLabels = { equal: "partes iguales", income: "proporcional al sueldo", manual: "montos manuales" };
+  const methodLabels = { equal: "partes iguales", income: "proporcional al sueldo", manual: "montos manuales", percent: "por porcentajes", shares: "por partes" };
+  renderCatChart(expenses);
 
   expenses.slice().reverse().forEach((exp, i) => {
     const li = document.createElement("li");
@@ -410,6 +427,7 @@ async function loadExpenses() {
       </div>
       <div style="display:flex; align-items:center; gap:8px;">
         ${myStatusHtml}
+        ${exp.category !== "pago" ? `<button class="icon-btn edit-btn" title="Editar gasto" aria-label="Editar gasto"><svg class="ic" style="width:18px;height:18px"><use href="#i-pen"/></svg></button>` : ""}
         <button class="delete-btn" data-id="${exp.id}" title="Eliminar gasto">×</button>
       </div>
     `;
@@ -419,6 +437,24 @@ async function loadExpenses() {
       await loadBalances();
       await loadReminderBanner();
     });
+    const editBtn = li.querySelector(".edit-btn");
+    if (editBtn) editBtn.addEventListener("click", () => startEditExpense(exp));
+    const cm = document.createElement("div");
+    cm.style.flexBasis = "100%";
+    const cmBtn = document.createElement("button");
+    cmBtn.type = "button";
+    cmBtn.className = "link-btn cm-btn";
+    cmBtn.textContent = `Comentarios (${exp.comments_count || 0})`;
+    const cmBox = document.createElement("div");
+    cmBox.className = "comments-box";
+    cmBox.style.display = "none";
+    cmBtn.addEventListener("click", async () => {
+      if (cmBox.style.display !== "none") { cmBox.style.display = "none"; return; }
+      cmBox.style.display = "block";
+      await renderComments(exp, cmBtn, cmBox);
+    });
+    cm.append(cmBtn, cmBox);
+    li.appendChild(cm);
     const paidBtn = li.querySelector(".mark-paid-btn");
     if (paidBtn) {
       paidBtn.addEventListener("click", async () => {
@@ -456,7 +492,12 @@ async function loadBalances() {
   }
   simplified.forEach((tx) => {
     const li = document.createElement("li");
-    li.innerHTML = `<span>${tx.from_user} → ${tx.to_user}</span><span>${fmt(tx.amount)}</span>`;
+    li.innerHTML = `<span>${tx.from_user} → ${tx.to_user}</span><span class="debt-right"><strong>${fmt(tx.amount)}</strong></span>`;
+    const btn = document.createElement("button");
+    btn.className = "mark-paid-btn";
+    btn.textContent = "Registrar pago";
+    btn.addEventListener("click", () => recordPayment(tx));
+    li.querySelector(".debt-right").appendChild(btn);
     simplifiedList.appendChild(li);
   });
 }
@@ -940,6 +981,137 @@ async function showInviteBanner() {
   } catch (e) { el.textContent = e.message; localStorage.removeItem(pendingKey); }
   el.classList.remove("hidden");
 }
+
+// ---------- Editar gasto y comentarios ----------
+let editingExpenseId = null;
+function startEditExpense(exp) {
+  editingExpenseId = exp.id;
+  document.getElementById("expense-desc").value = exp.description;
+  document.getElementById("expense-amount").value = Math.round(exp.amount).toLocaleString("es-CL");
+  document.getElementById("expense-category").value = exp.category;
+  document.getElementById("expense-payer").value = exp.paid_by_id;
+  const keep = ["equal", "income"].includes(exp.split_method);
+  document.getElementById("expense-split-method").value = keep ? exp.split_method : "manual";
+  buildManualSplitBox();
+  if (!keep) {
+    const inputs = [...document.querySelectorAll(".manual-share-input")];
+    const vals = inputs.map((i) => { const s = exp.splits.find((x) => x.user_id === +i.dataset.userId); return s ? Math.round(s.amount_owed) : 0; });
+    const last = vals.map((v) => v > 0).lastIndexOf(true);
+    if (last >= 0) vals[last] += Math.round(exp.amount) - vals.reduce((a, b) => a + b, 0);
+    inputs.forEach((i, k) => { i.value = vals[k] ? vals[k].toLocaleString("es-CL") : ""; });
+  }
+  updateManualSplitTotal();
+  document.getElementById("expense-submit").textContent = "Guardar cambios";
+  document.getElementById("expense-cancel-edit").style.display = "";
+  document.getElementById("add-expense-form").scrollIntoView({ behavior: "smooth", block: "center" });
+}
+function stopEditExpense() {
+  editingExpenseId = null;
+  document.getElementById("expense-submit").textContent = "Agregar gasto";
+  document.getElementById("expense-cancel-edit").style.display = "none";
+}
+document.getElementById("expense-cancel-edit").addEventListener("click", () => {
+  stopEditExpense();
+  document.getElementById("expense-desc").value = "";
+  document.getElementById("expense-amount").value = "";
+  document.getElementById("expense-split-method").value = "equal";
+  buildManualSplitBox();
+});
+
+async function renderComments(exp, btn, box) {
+  const base = `/groups/${currentGroupId}/expenses/${exp.id}/comments`;
+  const list = await apiFetch(base);
+  box.innerHTML = "";
+  list.forEach((c) => {
+    const p = document.createElement("p");
+    p.className = "comment";
+    const who = document.createElement("strong");
+    who.textContent = c.user_name;
+    const when = document.createElement("small");
+    when.textContent = " · " + new Date(c.created_at + "Z").toLocaleString("es-CL", { dateStyle: "short", timeStyle: "short" });
+    const txt = document.createElement("span");
+    txt.textContent = c.text;
+    p.append(who, when, document.createElement("br"), txt);
+    box.appendChild(p);
+  });
+  if (!list.length) box.insertAdjacentHTML("afterbegin", '<p class="hint-text">Aún no hay comentarios.</p>');
+  const form = document.createElement("div");
+  form.className = "comment-form";
+  const input = document.createElement("input");
+  input.type = "text"; input.maxLength = 500; input.placeholder = "Escribe un comentario";
+  const send = document.createElement("button");
+  send.type = "button"; send.textContent = "Enviar";
+  const go = async () => {
+    const text = input.value.trim();
+    if (!text) return;
+    try {
+      await apiFetch(base, { method: "POST", body: JSON.stringify({ text }) });
+      exp.comments_count = (exp.comments_count || 0) + 1;
+      btn.textContent = `Comentarios (${exp.comments_count})`;
+      await renderComments(exp, btn, box);
+    } catch (e) { alert(e.message); }
+  };
+  send.addEventListener("click", go);
+  input.addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); go(); } });
+  form.append(input, send);
+  box.appendChild(form);
+}
+
+// ---------- Registrar pago, gráfico por categoría y exportar CSV ----------
+async function recordPayment(tx) {
+  const from = currentGroupMembers.find((m) => m.name === tx.from_user);
+  const to = currentGroupMembers.find((m) => m.name === tx.to_user);
+  if (!from || !to) return alert("No se pudo identificar a los participantes del pago.");
+  const raw = prompt(`¿Cuánto pagó ${from.name} a ${to.name}?`, Math.round(tx.amount).toLocaleString("es-CL"));
+  const amount = parseInt((raw || "").replace(/\D/g, ""), 10) || 0;
+  if (amount <= 0) return;
+  try {
+    await apiFetch(`/groups/${currentGroupId}/expenses/`, { method: "POST", body: JSON.stringify({
+      description: `Pago de ${from.name} a ${to.name}`, amount, paid_by_id: from.id, category: "pago",
+      split_method: "manual", split_between_ids: [to.id], manual_shares: [{ user_id: to.id, amount }] }) });
+    await refreshGroupDetail();
+  } catch (e) { alert(e.message); }
+}
+
+function renderCatChart(expenses) {
+  const box = document.getElementById("cat-chart");
+  const totals = {};
+  expenses.filter((e) => e.category !== "pago").forEach((e) => { totals[e.category] = (totals[e.category] || 0) + e.amount; });
+  const entries = Object.entries(totals).sort((a, b) => b[1] - a[1]);
+  box.innerHTML = "";
+  if (!entries.length) { box.innerHTML = '<p class="hint-text">Aún no hay gastos para graficar.</p>'; return; }
+  const sum = entries.reduce((t, [, v]) => t + v, 0);
+  const total = document.createElement("p");
+  total.className = "hint-text";
+  total.textContent = `Total gastado: ${fmt(sum)}`;
+  box.appendChild(total);
+  entries.forEach(([key, v]) => {
+    const c = categories.find((x) => x.key === key) || { label: key, color: "#A99AB5" };
+    const row = document.createElement("div");
+    row.className = "cat-row";
+    row.innerHTML = '<div class="cat-top"><span></span><strong></strong></div><div class="cat-bar"><i></i></div>';
+    row.querySelector("span").textContent = c.label;
+    row.querySelector("strong").textContent = `${fmt(v)} · ${Math.round((v / sum) * 100)}%`;
+    const bar = row.querySelector("i");
+    bar.style.width = (v / entries[0][1]) * 100 + "%";
+    bar.style.background = c.color;
+    box.appendChild(row);
+  });
+}
+
+document.getElementById("moves-export").addEventListener("click", () => {
+  const q = document.getElementById("moves-search").value.trim().toLowerCase();
+  const rows = movesData.filter((e) => !q || [txCode(e.id), e.description, e.group_name, e.paid_by_name, Math.round(e.amount)].join(" ").toLowerCase().includes(q));
+  const methods = { equal: "partes iguales", income: "proporcional al sueldo", manual: "montos manuales", percent: "por porcentajes", shares: "por partes" };
+  const esc = (v) => `"${String(v ?? "").replace(/"/g, '""')}"`;
+  const lines = [["Código", "Fecha", "Grupo", "Descripción", "Categoría", "Pagó", "Monto", "División"].map(esc).join(";")];
+  rows.forEach((e) => lines.push([txCode(e.id), String(e.created_at).slice(0, 10), e.group_name, e.description, e.category, e.paid_by_name, Math.round(e.amount), methods[e.split_method] || e.split_method].map(esc).join(";")));
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(new Blob(["\ufeff" + lines.join("\r\n")], { type: "text/csv;charset=utf-8" }));
+  a.download = "fasti-movimientos.csv";
+  a.click();
+  URL.revokeObjectURL(a.href);
+});
 
 // ---------- Inicio ----------
 if (token && currentUser) {

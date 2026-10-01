@@ -12,6 +12,13 @@ from .groups_router import _get_group_or_404
 router = APIRouter(prefix="/groups/{group_id}/expenses", tags=["Gastos"])
 
 
+def _find_expense(group: models.Group, expense_id: int) -> models.Expense:
+    e = next((x for x in group.expenses if x.id == expense_id), None)
+    if not e:
+        raise HTTPException(status_code=404, detail="Gasto no encontrado")
+    return e
+
+
 @router.post("/", response_model=schemas.ExpenseOut)
 def create_expense(
     group_id: int,
@@ -20,12 +27,63 @@ def create_expense(
     current_user: models.User = Depends(auth.get_current_user),
 ):
     group = _get_group_or_404(db, group_id, current_user)
+    return _upsert_expense(db, group, expense)
 
+
+@router.put("/{expense_id}", response_model=schemas.ExpenseOut)
+def update_expense(
+    group_id: int,
+    expense_id: int,
+    expense: schemas.ExpenseCreate,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(auth.get_current_user),
+):
+    """Edita un gasto y recalcula la división. Conserva su código de transacción."""
+    group = _get_group_or_404(db, group_id, current_user)
+    return _upsert_expense(db, group, expense, _find_expense(group, expense_id))
+
+
+def _comment_out(c: models.Comment) -> dict:
+    return {"id": c.id, "user_id": c.user_id, "user_name": c.user.name, "text": c.text, "created_at": c.created_at}
+
+
+@router.get("/{expense_id}/comments", response_model=List[schemas.CommentOut])
+def list_comments(
+    group_id: int,
+    expense_id: int,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(auth.get_current_user),
+):
+    group = _get_group_or_404(db, group_id, current_user)
+    return [_comment_out(c) for c in _find_expense(group, expense_id).comments]
+
+
+@router.post("/{expense_id}/comments", response_model=schemas.CommentOut)
+def add_comment(
+    group_id: int,
+    expense_id: int,
+    body: schemas.CommentIn,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(auth.get_current_user),
+):
+    group = _get_group_or_404(db, group_id, current_user)
+    exp = _find_expense(group, expense_id)
+    text = body.text.strip()
+    if not text or len(text) > 500:
+        raise HTTPException(status_code=400, detail="El comentario debe tener entre 1 y 500 caracteres")
+    c = models.Comment(expense_id=exp.id, user_id=current_user.id, text=text)
+    db.add(c)
+    db.commit()
+    db.refresh(c)
+    return _comment_out(c)
+
+
+def _upsert_expense(db: Session, group: models.Group, expense: schemas.ExpenseCreate, existing=None):
     payer = db.query(models.User).filter(models.User.id == expense.paid_by_id).first()
     if not payer or payer not in group.members:
         raise HTTPException(status_code=400, detail="Quien pagó debe ser miembro del grupo")
 
-    if expense.split_method not in ("equal", "income", "manual"):
+    if expense.split_method not in ("equal", "income", "manual", "percent", "shares"):
         raise HTTPException(status_code=400, detail="Método de división inválido")
 
     category = expense.category if expense.category in VALID_CATEGORIES else "otros"
@@ -88,20 +146,44 @@ def create_expense(
         for p in participants:
             shares[p.id] = round(manual_map[p.id], 2)
 
+    elif expense.split_method in ("percent", "shares"):
+        if not expense.manual_shares:
+            raise HTTPException(status_code=400, detail="Debes indicar el valor de cada participante")
+        w = {s.user_id: s.amount for s in expense.manual_shares}
+        if set(w.keys()) != {p.id for p in participants} or any(v < 0 for v in w.values()):
+            raise HTTPException(status_code=400, detail="Debes indicar un valor válido para cada participante seleccionado")
+        total_w = sum(w.values())
+        if total_w <= 0:
+            raise HTTPException(status_code=400, detail="Los valores deben sumar más de cero")
+        if expense.split_method == "percent" and abs(total_w - 100) > 0.01:
+            raise HTTPException(status_code=400, detail=f"Los porcentajes deben sumar 100% (suman {total_w:g}%)")
+        for p in participants:
+            shares[p.id] = round(expense.amount * w[p.id] / total_w, 2)
+
     else:  # equal
         share = round(expense.amount / len(participants), 2)
         for p in participants:
             shares[p.id] = share
 
-    new_expense = models.Expense(
-        group_id=group.id,
-        description=expense.description,
-        amount=expense.amount,
-        paid_by_id=payer.id,
-        split_method=expense.split_method,
-        category=category,
-    )
-    db.add(new_expense)
+    if existing:
+        new_expense = existing
+        for old_split in list(existing.splits):
+            db.delete(old_split)
+        existing.description = expense.description
+        existing.amount = expense.amount
+        existing.paid_by_id = payer.id
+        existing.split_method = expense.split_method
+        existing.category = category
+    else:
+        new_expense = models.Expense(
+            group_id=group.id,
+            description=expense.description,
+            amount=expense.amount,
+            paid_by_id=payer.id,
+            split_method=expense.split_method,
+            category=category,
+        )
+        db.add(new_expense)
     db.flush()  # para obtener new_expense.id antes de commit
 
     # Ajuste de centavos: el último participante absorbe la diferencia de redondeo
@@ -257,6 +339,7 @@ def _serialize_expense(expense: models.Expense) -> dict:
         "split_method": expense.split_method,
         "category": expense.category,
         "created_at": expense.created_at,
+        "comments_count": len(expense.comments),
         "splits": [
             {
                 "id": s.id,

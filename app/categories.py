@@ -9,6 +9,7 @@ CATEGORIES = {
     "salidas":      {"label": "Salidas",      "abbr": "SA", "color": "#C96B9E"},
     "salud":        {"label": "Salud",        "abbr": "SL", "color": "#F28B82"},
     "otros":        {"label": "Otros",        "abbr": "OT", "color": "#A99AB5"},
+    "pago":         {"label": "Pago",         "abbr": "PA", "color": "#6B7BDB"},
 }
 
 VALID_CATEGORIES = set(CATEGORIES.keys())

@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>fasti</title>
 <meta name="theme-color" content="#f1ecf7">
-<link rel="stylesheet" href="/static/css/style.css?v=12">
+<link rel="stylesheet" href="/static/css/style.css?v=14">
 </head>
 <body>
 
@@ -125,6 +125,7 @@
     <h2>Movimientos de plata</h2>
     <div class="searchbox"><svg class="ic"><use href="#i-search"/></svg><input type="search" id="moves-search" placeholder="Buscar por nombre, grupo, monto o código" autocomplete="off"></div>
     <p id="moves-summary" class="hint-text"></p>
+    <button id="moves-export" class="link-btn" type="button">Exportar a CSV</button>
     <ul id="moves-list" class="list"></ul>
   </div>
 </section>
@@ -188,9 +189,12 @@
           <option value="equal">Partes iguales</option>
           <option value="income">Proporcional al sueldo</option>
           <option value="manual">Montos manuales</option>
+          <option value="percent">Por porcentajes</option>
+          <option value="shares">Por partes</option>
         </select>
       </label>
-      <button type="submit">Agregar gasto</button>
+      <button type="submit" id="expense-submit">Agregar gasto</button>
+      <button type="button" id="expense-cancel-edit" class="link-btn" style="display:none">Cancelar edición</button>
     </form>
     <div id="manual-split-box" class="manual-split-box"></div>
     <p class="error" id="expense-error"></p>
@@ -200,6 +204,8 @@
     <div class="card">
       <h3>Gastos registrados</h3>
       <ul id="expenses-list" class="list"></ul>
+    <h3 class="chart-title">Gastos por categoría</h3>
+    <div id="cat-chart" class="cat-chart"></div>
     </div>
 
     <div class="card">
@@ -222,6 +228,6 @@
   </div>
 </section>
 
-<script src="/static/js/app.js?v=12"></script>
+<script src="/static/js/app.js?v=14"></script>
 </body>
 </html>

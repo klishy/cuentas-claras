@@ -80,6 +80,7 @@ class Expense(Base):
     group = relationship("Group", back_populates="expenses")
     paid_by = relationship("User", back_populates="expenses_paid")
     splits = relationship("ExpenseSplit", back_populates="expense", cascade="all, delete")
+    comments = relationship("Comment", cascade="all, delete", order_by="Comment.id")
 
 
 class ExpenseSplit(Base):
@@ -94,4 +95,17 @@ class ExpenseSplit(Base):
     settled_at = Column(DateTime, nullable=True)
 
     expense = relationship("Expense", back_populates="splits")
+    user = relationship("User")
+
+
+class Comment(Base):
+    """Comentario de un integrante sobre un gasto."""
+    __tablename__ = "comments"
+
+    id = Column(Integer, primary_key=True, index=True)
+    expense_id = Column(Integer, ForeignKey("expenses.id"))
+    user_id = Column(Integer, ForeignKey("users.id"))
+    text = Column(Text, nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
     user = relationship("User")
