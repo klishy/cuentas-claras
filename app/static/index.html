@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>fasti</title>
 <meta name="theme-color" content="#f1ecf7">
-<link rel="stylesheet" href="/static/css/style.css?v=8">
+<link rel="stylesheet" href="/static/css/style.css?v=12">
 </head>
 <body>
 
@@ -20,19 +20,29 @@
 <symbol id="t-repeat" viewBox="0 0 24 24"><path d="M17 2l4 4-4 4M3 11V9a3 3 0 013-3h15M7 22l-4-4 4-4M21 13v2a3 3 0 01-3 3H3"/></symbol>
 <symbol id="t-bolt" viewBox="0 0 24 24"><path d="M13 2L4 14h7l-1 8 9-12h-7z"/></symbol>
 <symbol id="t-folder" viewBox="0 0 24 24"><path d="M3 7a2 2 0 012-2h4l2 2h8a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2z"/></symbol>
+<symbol id="i-bell" viewBox="0 0 24 24"><path d="M6 16v-5a6 6 0 0112 0v5l2 2H4z"/><path d="M10 21h4"/></symbol>
+<symbol id="i-sliders" viewBox="0 0 24 24"><path d="M4 7h9M19 7h1M4 17h1M11 17h9"/><circle cx="16" cy="7" r="2.4"/><circle cx="8" cy="17" r="2.4"/></symbol>
+<symbol id="i-list" viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h10"/></symbol>
+<symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="6.5"/><path d="M20 20l-4.2-4.2"/></symbol>
 </defs></svg>
 
 <header class="topbar">
   <div class="brand"><button id="menu-btn" class="icon-btn hidden" aria-label="Abrir grupos"><svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M4 7h16M4 12h16M4 17h16"/></svg></button><h1>fasti</h1></div>
   <div id="user-info" class="hidden">
+    <button id="bell-btn" class="icon-btn bell" aria-label="Notificaciones"><svg class="ic"><use href="#i-bell"/></svg><span id="bell-badge" class="badge hidden">0</span></button>
     <span id="user-name-display"></span>
     <button id="logout-btn">Salir</button>
   </div>
 </header>
+<div id="notif-panel" class="notif-panel hidden"><h4>Notificaciones</h4><ul id="notif-list" class="list"></ul></div>
 
 <div id="drawer-overlay" class="overlay"></div>
 <aside id="drawer" class="drawer" aria-label="Tus grupos">
   <div class="drawer-head"><h2>Tus grupos</h2><button id="drawer-close" class="icon-btn" aria-label="Cerrar">&times;</button></div>
+  <nav class="drawer-nav">
+    <button data-go="moves-screen"><svg class="ic"><use href="#i-list"/></svg>Movimientos de plata</button>
+    <button data-go="settings-screen"><svg class="ic"><use href="#i-sliders"/></svg>Ajustes</button>
+  </nav>
   <div id="drawer-body"></div>
   <h4>Métodos de pago</h4>
   <ul class="list pay-list" aria-disabled="true">
@@ -50,6 +60,7 @@
       <svg class="silhouette" viewBox="0 0 24 24"><circle cx="12" cy="8" r="4.5"/><path d="M3.5 21c.8-4.6 4.4-7 8.5-7s7.7 2.4 8.5 7z"/></svg>
       <input type="file" id="avatar-input" accept="image/*" hidden>
     </label>
+    <p id="auth-invite" class="auth-invite hidden"></p>
     <p class="avatar-hint">Toca para agregar tu foto (opcional)</p>
     <div class="tabs">
       <button class="tab-btn active" data-tab="login">Iniciar sesión</button>
@@ -93,6 +104,43 @@
     <p class="error" id="group-error"></p>
     <ul id="groups-list" class="list"></ul>
   </div>
+  <div id="subs-card" class="card hidden">
+    <h3>Suscripciones mensuales</h3>
+    <div class="subs-total"><span>Total al mes</span><strong id="subs-total">$0</strong></div>
+    <form id="sub-form" class="sub-form">
+      <input list="sub-presets" id="sub-name" placeholder="Servicio (ej: Spotify)" autocomplete="off" required>
+      <datalist id="sub-presets"></datalist>
+      <input type="text" inputmode="numeric" autocomplete="off" class="money" id="sub-amount" placeholder="Valor mensual (CLP)" required>
+      <label class="img-pick"><input type="file" id="sub-img" accept="image/*" hidden><span id="sub-img-label">Imagen (opcional)</span></label>
+      <button type="submit">Agregar</button>
+    </form>
+    <ul id="subs-list" class="list"></ul>
+  </div>
+</section>
+
+<!-- ---------- MOVIMIENTOS ---------- -->
+<section id="moves-screen" class="screen hidden">
+  <button class="back-btn" data-go="groups-screen">← Inicio</button>
+  <div class="card">
+    <h2>Movimientos de plata</h2>
+    <div class="searchbox"><svg class="ic"><use href="#i-search"/></svg><input type="search" id="moves-search" placeholder="Buscar por nombre, grupo, monto o código" autocomplete="off"></div>
+    <p id="moves-summary" class="hint-text"></p>
+    <ul id="moves-list" class="list"></ul>
+  </div>
+</section>
+
+<!-- ---------- AJUSTES ---------- -->
+<section id="settings-screen" class="screen hidden">
+  <button class="back-btn" data-go="groups-screen">← Inicio</button>
+  <div class="card">
+    <h2>Ajustes</h2>
+    <h3>Brillo <span id="set-brightness-val" class="hint-text">100%</span></h3>
+    <input type="range" id="set-brightness" min="60" max="120" value="100">
+    <h3 style="margin-top:20px">Color de fondo</h3>
+    <div id="bg-swatches" class="swatches"></div>
+    <label class="img-pick" style="margin-top:12px">Color personalizado <input type="color" id="bg-custom" value="#f1ecf7"></label>
+    <button id="set-reset" class="link-btn" style="margin-top:8px">Restablecer</button>
+  </div>
 </section>
 
 <!-- ---------- DETALLE DE GRUPO ---------- -->
@@ -101,11 +149,18 @@
   <div class="card">
     <div class="group-header">
       <h2 id="group-detail-name"></h2>
-      <form id="add-member-form" class="inline-form">
+    </div>
+    <div class="invite-box">
+      <a id="invite-wa" class="wa-btn" target="_blank" rel="noopener">Invitar por WhatsApp</a>
+      <button id="invite-copy" type="button" class="link-btn">Copiar enlace</button>
+      <button id="invite-reset" type="button" class="link-btn">Generar enlace nuevo</button>
+      <p class="hint-text" id="invite-note"></p>
+    </div>
+    <p class="hint-text" style="margin:12px 0 6px">O agrégalo por correo si ya tiene cuenta:</p>
+    <form id="add-member-form" class="inline-form">
         <input type="email" id="new-member-email" placeholder="Correo del integrante" required>
         <button type="submit">+ Agregar</button>
       </form>
-    </div>
     <p class="error" id="member-error"></p>
     <div id="members-chips" class="chips"></div>
   </div>
@@ -156,6 +211,17 @@
   </div>
 </section>
 
-<script src="/static/js/app.js?v=8"></script>
+<!-- ---------- INVITACIÓN ---------- -->
+<section id="join-screen" class="screen hidden">
+  <div class="card join-card">
+    <h2 id="join-title">Invitación</h2>
+    <p id="join-sub" class="hint-text"></p>
+    <button id="join-accept">Unirme al grupo</button>
+    <button id="join-cancel" class="link-btn" type="button">Ahora no</button>
+    <p class="error" id="join-error"></p>
+  </div>
+</section>
+
+<script src="/static/js/app.js?v=12"></script>
 </body>
 </html>

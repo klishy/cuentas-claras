@@ -1,3 +1,5 @@
+import secrets
+from datetime import datetime, timedelta
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from typing import List
@@ -82,6 +84,62 @@ def get_resumen_pendientes(
         total_debe=round(total_debe, 2),
         detalle=detalle,
     )
+
+
+INVITE_DAYS = 7
+
+
+def _invite_ok(g) -> bool:
+    return bool(g and g.invite_token and g.invite_expires and datetime.fromisoformat(g.invite_expires) > datetime.utcnow())
+
+
+def _group_by_token(db: Session, token: str) -> models.Group:
+    g = db.query(models.Group).filter(models.Group.invite_token == token).first()
+    if not _invite_ok(g):
+        raise HTTPException(status_code=404, detail="El enlace de invitación no es válido o ya expiró")
+    return g
+
+
+@router.get("/invite/{token}", response_model=schemas.InvitePreview)
+def invite_preview(token: str, db: Session = Depends(get_db)):
+    g = _group_by_token(db, token)
+    return {"group_name": g.name, "members": len(g.members)}
+
+
+@router.post("/invite/{token}", response_model=schemas.GroupOut)
+def join_by_invite(
+    token: str,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(auth.get_current_user),
+):
+    g = _group_by_token(db, token)
+    if current_user in g.members:
+        return g
+    owner = db.query(models.User).filter(models.User.id == g.created_by_id).first()
+    if not (owner and owner.is_premium) and len(g.members) >= FREE_MAX_MEMBERS_PER_GROUP:
+        raise HTTPException(
+            status_code=402,
+            detail=f"Este grupo ya alcanzó el máximo de {FREE_MAX_MEMBERS_PER_GROUP} integrantes del plan gratuito.",
+        )
+    g.members.append(current_user)
+    db.commit()
+    db.refresh(g)
+    return g
+
+
+@router.post("/{group_id}/invite", response_model=schemas.InviteOut)
+def create_invite(
+    group_id: int,
+    regenerate: bool = False,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(auth.get_current_user),
+):
+    group = _get_group_or_404(db, group_id, current_user)
+    if regenerate or not _invite_ok(group):
+        group.invite_token = secrets.token_urlsafe(9)
+        group.invite_expires = (datetime.utcnow() + timedelta(days=INVITE_DAYS)).isoformat()
+        db.commit()
+    return {"token": group.invite_token, "expires": group.invite_expires}
 
 
 @router.get("/{group_id}", response_model=schemas.GroupOut)

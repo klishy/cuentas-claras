@@ -63,7 +63,7 @@ def save_layout(
     db: Session = Depends(get_db),
     current_user: models.User = Depends(auth.get_current_user),
 ):
-    if len(body.layout) > 20_000:
+    if len(body.layout) > 60_000:
         raise HTTPException(status_code=400, detail="Distribución demasiado grande")
     current_user.layout = body.layout
     db.commit()

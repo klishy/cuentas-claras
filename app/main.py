@@ -15,10 +15,11 @@ models.Base.metadata.create_all(bind=engine)
 
 # Migración ligera: agrega columnas nuevas a bases de datos existentes
 with engine.begin() as _c:
-    _cols = {c["name"] for c in inspect(engine).get_columns("users")}
-    for _n in ("birth_date", "avatar", "layout"):
-        if _n not in _cols:
-            _c.execute(text(f"ALTER TABLE users ADD COLUMN {_n} TEXT"))
+    for _t, _names in (("users", ("birth_date", "avatar", "layout")), ("groups", ("invite_token", "invite_expires"))):
+        _cols = {c["name"] for c in inspect(engine).get_columns(_t)}
+        for _n in _names:
+            if _n not in _cols:
+                _c.execute(text(f'ALTER TABLE "{_t}" ADD COLUMN {_n} TEXT'))
 
 app = FastAPI(title="Cuentas Claras API", version="1.0.0")
 

@@ -39,6 +39,9 @@ class Group(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
     # "equal" = partes iguales | "income" = proporcional al sueldo de cada uno
     default_split_method = Column(String, default="equal")
+    # Enlace de invitación (revocable, vence a los 7 días)
+    invite_token = Column(String)
+    invite_expires = Column(String)
 
     memberships = relationship(
         "GroupMembership", back_populates="group", cascade="all, delete-orphan"

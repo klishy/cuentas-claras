@@ -118,7 +118,7 @@ async function initAfterLogin() {
   renderHomeHeader();
   await loadGroups();
   await loadReminderBanner();
-  show("groups-screen");
+  if (!(await showPendingJoin())) show("groups-screen");
 }
 
 async function loadCategories() {
@@ -138,6 +138,7 @@ async function loadReminderBanner() {
   container.innerHTML = "";
   try {
     const resumen = await apiFetch("/groups/resumen/pendientes");
+    renderBell(resumen);
     const neto = resumen.total_le_deben - resumen.total_debe;
 
     if (resumen.total_le_deben < 0.5 && resumen.total_debe < 0.5) {
@@ -207,6 +208,7 @@ async function openGroup(groupId) {
   currentGroupId = groupId;
   renderGroupLists();
   await refreshGroupDetail();
+  prepareInvite();
   show("group-detail-screen");
 }
 
@@ -403,7 +405,7 @@ async function loadExpenses() {
         ${icon}
         <div>
           <strong>${exp.description}</strong><br>
-          <small>Pagó ${exp.paid_by_name} · ${fmt(exp.amount)} · ${methodLabel}</small>
+          <small>${txCode(exp.id)} · Pagó ${exp.paid_by_name} · ${fmt(exp.amount)} · ${methodLabel}</small>
         </div>
       </div>
       <div style="display:flex; align-items:center; gap:8px;">
@@ -641,6 +643,7 @@ function openSection(id) {
   saveLayout();
   document.getElementById("section-name").textContent = layout.sections.find((s) => s.id === id).name;
   renderGroupLists();
+  renderSubs();
   show("section-screen");
 }
 document.getElementById("back-home").addEventListener("click", () => {
@@ -688,9 +691,260 @@ document.getElementById("edit-tiles").addEventListener("click", () => { editMode
   grid.addEventListener("pointercancel", end);
 })();
 
+// ---------- Suscripciones (ventana "Gastos continuos") ----------
+const SUB_PRESETS = { "Spotify": "#1DB954", "Netflix": "#E50914", "Disney+": "#113CCF", "HBO Max": "#5A2D91", "YouTube Premium": "#FF0000", "Amazon Prime": "#00A8E1", "Apple Music": "#FA243C", "iCloud": "#3693F5", "ChatGPT": "#10A37F", "Canva": "#00C4CC" };
+const SUB_FALLBACK = ["#7A3B72", "#F0606B", "#F9A66C", "#9A6FC3", "#C96B9E"];
+let subImg = null;
+document.getElementById("sub-presets").innerHTML = Object.keys(SUB_PRESETS).map((n) => `<option value="${n}">`).join("");
+
+document.getElementById("sub-img").addEventListener("change", (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
+  const img = new Image();
+  const url = URL.createObjectURL(file);
+  img.onload = () => {
+    const c = document.createElement("canvas");
+    c.width = c.height = 64;
+    const s = Math.min(img.width, img.height);
+    c.getContext("2d").drawImage(img, (img.width - s) / 2, (img.height - s) / 2, s, s, 0, 0, 64, 64);
+    subImg = c.toDataURL("image/jpeg", 0.75);
+    document.getElementById("sub-img-label").textContent = "Imagen lista ✓";
+    URL.revokeObjectURL(url);
+  };
+  img.src = url;
+});
+
+document.getElementById("sub-form").addEventListener("submit", (e) => {
+  e.preventDefault();
+  const raw = document.getElementById("sub-name").value.trim();
+  const amount = moneyValue(document.getElementById("sub-amount"));
+  if (!raw || amount <= 0) return;
+  const preset = Object.keys(SUB_PRESETS).find((k) => k.toLowerCase() === raw.toLowerCase());
+  const name = preset || raw;
+  const color = preset ? SUB_PRESETS[preset] : SUB_FALLBACK[name.length % SUB_FALLBACK.length];
+  layout.subs = layout.subs || [];
+  layout.subs.push({ id: "u" + Date.now(), name, amount, color, logo: subImg });
+  saveLayout();
+  e.target.reset();
+  subImg = null;
+  document.getElementById("sub-img-label").textContent = "Imagen (opcional)";
+  renderSubs();
+});
+
+function renderSubs() {
+  const card = document.getElementById("subs-card");
+  const visible = currentSectionId === "s-fijos";
+  card.classList.toggle("hidden", !visible);
+  if (!visible) return;
+  const subs = layout.subs || [];
+  document.getElementById("subs-total").textContent = fmt(subs.reduce((t, s) => t + s.amount, 0));
+  const ul = document.getElementById("subs-list");
+  ul.innerHTML = "";
+  if (!subs.length) ul.innerHTML = "<li>Aún no agregas suscripciones.</li>";
+  subs.forEach((s) => {
+    const li = document.createElement("li");
+    const row = document.createElement("div");
+    row.className = "sub-row";
+    const badge = document.createElement("span");
+    badge.className = "category-badge sub-badge";
+    badge.style.background = s.color;
+    if (s.logo) { const im = document.createElement("img"); im.src = s.logo; badge.appendChild(im); }
+    else badge.textContent = s.name.charAt(0).toUpperCase();
+    const nm = document.createElement("strong");
+    nm.textContent = s.name;
+    row.append(badge, nm);
+    const right = document.createElement("div");
+    right.style.cssText = "display:flex;align-items:center;gap:6px";
+    const amt = document.createElement("span");
+    amt.className = "sub-amount";
+    amt.textContent = fmt(s.amount) + " /mes";
+    const del = document.createElement("button");
+    del.className = "delete-btn";
+    del.innerHTML = "&times;";
+    del.setAttribute("aria-label", "Eliminar suscripción");
+    del.addEventListener("click", () => {
+      layout.subs = layout.subs.filter((x) => x.id !== s.id);
+      saveLayout(); renderSubs();
+    });
+    right.append(amt, del);
+    li.append(row, right);
+    ul.appendChild(li);
+  });
+}
+
+// ---------- Navegación del menú ----------
+document.addEventListener("click", (e) => {
+  const b = e.target.closest("[data-go]");
+  if (!b) return;
+  const target = b.dataset.go;
+  closeDrawer();
+  if (target === "groups-screen") { currentSectionId = null; renderGroupLists(); loadReminderBanner(); }
+  if (target === "moves-screen") loadMoves();
+  show(target);
+});
+
+// ---------- Notificaciones (campanita) ----------
+const notifPanel = document.getElementById("notif-panel");
+let notifSig = "";
+function renderBell(resumen) {
+  const items = resumen.detalle.map((d) => d.balance > 0
+    ? `En ${d.group_name} te deben ${fmt(d.balance)}`
+    : `En ${d.group_name} debes ${fmt(-d.balance)}`);
+  notifSig = JSON.stringify(items);
+  const ul = document.getElementById("notif-list");
+  ul.innerHTML = "";
+  if (!items.length) ul.innerHTML = "<li>No tienes notificaciones.</li>";
+  items.forEach((t) => { const li = document.createElement("li"); li.textContent = t; ul.appendChild(li); });
+  const seen = localStorage.getItem("notif_seen_" + currentUser.id) === notifSig;
+  const badge = document.getElementById("bell-badge");
+  badge.textContent = items.length;
+  badge.classList.toggle("hidden", !items.length || seen);
+}
+document.getElementById("bell-btn").addEventListener("click", (e) => {
+  e.stopPropagation();
+  notifPanel.classList.toggle("hidden");
+  if (!notifPanel.classList.contains("hidden")) {
+    localStorage.setItem("notif_seen_" + currentUser.id, notifSig);
+    document.getElementById("bell-badge").classList.add("hidden");
+  }
+});
+document.addEventListener("click", (e) => { if (!e.target.closest("#notif-panel")) notifPanel.classList.add("hidden"); });
+
+// ---------- Movimientos de plata y buscador ----------
+const txCode = (id) => "FA-" + String(id).padStart(5, "0");
+let movesData = [];
+async function loadMoves() {
+  const lists = await Promise.all(allGroups.map((g) =>
+    apiFetch(`/groups/${g.id}/expenses/`).then((ex) => ex.map((e) => ({ ...e, group_name: g.name }))).catch(() => [])));
+  movesData = lists.flat().sort((a, b) => b.id - a.id);
+  renderMoves();
+}
+function renderMoves() {
+  const q = document.getElementById("moves-search").value.trim().toLowerCase().replace(/\./g, "");
+  const rows = movesData.filter((e) => !q || [txCode(e.id), e.description, e.group_name, e.paid_by_name, Math.round(e.amount)].join(" ").toLowerCase().includes(q));
+  const total = rows.reduce((t, e) => t + e.amount, 0);
+  document.getElementById("moves-summary").textContent = `${rows.length} ${rows.length === 1 ? "movimiento" : "movimientos"} · ${fmt(total)}`;
+  const ul = document.getElementById("moves-list");
+  ul.innerHTML = "";
+  if (!rows.length) ul.innerHTML = `<li>${movesData.length ? "Sin resultados para tu búsqueda." : "Aún no hay movimientos."}</li>`;
+  rows.forEach((e) => {
+    const mine = e.splits.find((s) => s.user_id === currentUser.id);
+    const li = document.createElement("li");
+    const date = new Date(e.created_at).toLocaleDateString("es-CL");
+    li.innerHTML = `<div class="expense-row">${categoryIcon(e.category)}<div><strong class="m-desc"></strong><br><small class="m-meta"></small></div></div><div class="m-amt"><strong>${fmt(e.amount)}</strong>${mine ? `<br><small>Tu parte ${fmt(mine.amount_owed)}</small>` : ""}</div>`;
+    li.querySelector(".m-desc").textContent = e.description;
+    li.querySelector(".m-meta").textContent = `${txCode(e.id)} · ${e.group_name} · ${date}`;
+    ul.appendChild(li);
+  });
+}
+document.getElementById("moves-search").addEventListener("input", renderMoves);
+
+// ---------- Ajustes: brillo y color de fondo (se guardan en este dispositivo) ----------
+const BGS = { Lavanda: ["#f1ecf7", "#fbe3e6", "#e7dcf5"], Menta: ["#eaf6f2", "#d6f1e6", "#e3f0fa"], Durazno: ["#fbf0e8", "#fde0d0", "#f7e4ee"], Cielo: ["#eaf1fb", "#d9e6fa", "#ece6fa"], Gris: ["#f1f2f4", "#e8eaee", "#f6f6f8"] };
+let settings = JSON.parse(localStorage.getItem("settings") || "null") || { brightness: 100, bg: BGS.Lavanda };
+function applySettings() {
+  const r = document.documentElement;
+  r.style.setProperty("--bg", settings.bg[0]);
+  r.style.setProperty("--g1", settings.bg[1]);
+  r.style.setProperty("--g2", settings.bg[2]);
+  r.style.filter = settings.brightness === 100 ? "" : `brightness(${settings.brightness}%)`;
+  document.getElementById("set-brightness").value = settings.brightness;
+  document.getElementById("set-brightness-val").textContent = settings.brightness + "%";
+  document.querySelectorAll(".swatch").forEach((s) => s.classList.toggle("on", s.dataset.c === settings.bg.join()));
+}
+function saveSettings() { localStorage.setItem("settings", JSON.stringify(settings)); applySettings(); }
+Object.entries(BGS).forEach(([name, c]) => {
+  const b = document.createElement("button");
+  b.type = "button"; b.className = "swatch"; b.title = name; b.dataset.c = c.join();
+  b.style.background = `linear-gradient(135deg, ${c[1]}, ${c[2]})`;
+  b.addEventListener("click", () => { settings.bg = c; saveSettings(); });
+  document.getElementById("bg-swatches").appendChild(b);
+});
+document.getElementById("set-brightness").addEventListener("input", (e) => { settings.brightness = +e.target.value; saveSettings(); });
+document.getElementById("bg-custom").addEventListener("input", (e) => { const c = e.target.value; settings.bg = [c, c, c]; saveSettings(); });
+document.getElementById("set-reset").addEventListener("click", () => { settings = { brightness: 100, bg: BGS.Lavanda }; saveSettings(); });
+applySettings();
+
+// ---------- Invitación por enlace (WhatsApp) ----------
+const pendingKey = "pending_join";
+(function captureInvite() {
+  const t = new URLSearchParams(location.search).get("join");
+  if (t) { localStorage.setItem(pendingKey, t); history.replaceState(null, "", location.pathname); }
+})();
+let lastInvite = null;
+const inviteLink = (t) => `${location.origin}/?join=${encodeURIComponent(t)}`;
+
+async function prepareInvite(regenerate = false) {
+  const gid = currentGroupId;
+  const a = document.getElementById("invite-wa");
+  const note = document.getElementById("invite-note");
+  a.removeAttribute("href");
+  try {
+    const inv = await apiFetch(`/groups/${gid}/invite${regenerate ? "?regenerate=true" : ""}`, { method: "POST" });
+    if (gid !== currentGroupId) return;
+    lastInvite = inv;
+    const name = document.getElementById("group-detail-name").textContent;
+    a.href = "https://wa.me/?text=" + encodeURIComponent(`Te invito al grupo "${name}" en fasti para dividir gastos: ${inviteLink(inv.token)}`);
+    note.textContent = regenerate ? "Enlace nuevo listo. El anterior ya no funciona." : "El enlace vence en 7 días. Quien lo reciba podrá unirse al grupo.";
+  } catch (err) { note.textContent = err.message; }
+}
+document.getElementById("invite-copy").addEventListener("click", async () => {
+  if (!lastInvite) return;
+  const note = document.getElementById("invite-note");
+  try { await navigator.clipboard.writeText(inviteLink(lastInvite.token)); note.textContent = "Enlace copiado."; }
+  catch (e) { note.textContent = inviteLink(lastInvite.token); }
+});
+document.getElementById("invite-reset").addEventListener("click", () => {
+  if (confirm("El enlace anterior dejará de funcionar. ¿Generar uno nuevo?")) prepareInvite(true);
+});
+
+async function showPendingJoin() {
+  const t = localStorage.getItem(pendingKey);
+  if (!t) return false;
+  const accept = document.getElementById("join-accept");
+  document.getElementById("join-error").textContent = "";
+  try {
+    const info = await apiFetch(`/groups/invite/${encodeURIComponent(t)}`);
+    document.getElementById("join-title").textContent = `Te invitaron a ${info.group_name}`;
+    document.getElementById("join-sub").textContent = `${info.members} ${info.members === 1 ? "integrante" : "integrantes"} en el grupo.`;
+    accept.style.display = "";
+  } catch (e) {
+    document.getElementById("join-title").textContent = "Invitación no disponible";
+    document.getElementById("join-sub").textContent = e.message;
+    accept.style.display = "none";
+  }
+  show("join-screen");
+  return true;
+}
+document.getElementById("join-accept").addEventListener("click", async () => {
+  try {
+    const g = await apiFetch(`/groups/invite/${encodeURIComponent(localStorage.getItem(pendingKey))}`, { method: "POST" });
+    localStorage.removeItem(pendingKey);
+    await loadGroups();
+    currentSectionId = sectionOf(g);
+    await openGroup(g.id);
+  } catch (e) { document.getElementById("join-error").textContent = e.message; }
+});
+document.getElementById("join-cancel").addEventListener("click", () => {
+  localStorage.removeItem(pendingKey);
+  currentSectionId = null; renderGroupLists(); show("groups-screen");
+});
+async function showInviteBanner() {
+  const t = localStorage.getItem(pendingKey);
+  if (!t) return;
+  const el = document.getElementById("auth-invite");
+  try {
+    const i = await apiFetch(`/groups/invite/${encodeURIComponent(t)}`);
+    el.textContent = `Te invitaron a "${i.group_name}". Crea tu cuenta o inicia sesión para unirte.`;
+    document.querySelector("[data-tab=register]").click();
+  } catch (e) { el.textContent = e.message; localStorage.removeItem(pendingKey); }
+  el.classList.remove("hidden");
+}
+
 // ---------- Inicio ----------
 if (token && currentUser) {
   initAfterLogin();
 } else {
   show("auth-screen");
+  showInviteBanner();
 }

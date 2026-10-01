@@ -141,3 +141,13 @@ class ResumenPendientes(BaseModel):
 
 class LayoutIn(BaseModel):
     layout: str
+
+
+class InviteOut(BaseModel):
+    token: str
+    expires: str
+
+
+class InvitePreview(BaseModel):
+    group_name: str
+    members: int
